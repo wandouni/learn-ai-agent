@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>weather_agent.py — 执行流程解析</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c14;
+    --bg2: #0e1420;
+    --bg3: #141b2d;
+    --green: #00e87a;
+    --blue: #38bdf8;
+    --orange: #fb923c;
+    --purple: #a78bfa;
+    --red: #f87171;
+    --text: #cbd5e1;
+    --muted: #475569;
+    --border: #1e2d45;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ─── HERO ─────────────────────────────────────── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,232,122,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(56,189,248,0.05) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,232,122,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,232,122,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .file-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+    border: 1px solid rgba(0,232,122,0.3);
+    background: rgba(0,232,122,0.07);
+    padding: 6px 16px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  h1 {
+    font-size: clamp(32px, 6vw, 72px);
+    font-weight: 900;
+    line-height: 1.1;
+    text-align: center;
+    margin-bottom: 20px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  h1 span { color: var(--green); }
+
+  .subtitle {
+    font-size: 16px;
+    color: var(--muted);
+    text-align: center;
+    max-width: 500px;
+    margin-bottom: 56px;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  .concept-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 8px 20px;
+    border-radius: 24px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .pill.green { color: var(--green); border-color: rgba(0,232,122,0.25); background: rgba(0,232,122,0.05); }
+  .pill.blue  { color: var(--blue);  border-color: rgba(56,189,248,0.25); background: rgba(56,189,248,0.05); }
+  .pill.orange{ color: var(--orange);border-color: rgba(251,146,60,0.25);  background: rgba(251,146,60,0.05); }
+
+  .arrow-icon { color: var(--muted); font-size: 18px; }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    animation: bounce 2s infinite;
+  }
+  .scroll-hint svg { opacity: 0.4; }
+
+  /* ─── SECTION WRAPPER ───────────────────────────── */
+  .section {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 80px 24px;
+  }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 12px;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s, transform 0.5s;
+  }
+  .section-label.vis { opacity: 1; transform: none; }
+
+  .section-title {
+    font-size: clamp(22px, 4vw, 36px);
+    font-weight: 700;
+    margin-bottom: 40px;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s 0.1s, transform 0.5s 0.1s;
+  }
+  .section-title.vis { opacity: 1; transform: none; }
+
+  /* ─── PHASE CARDS ───────────────────────────────── */
+  .phases { display: flex; flex-direction: column; gap: 0; }
+
+  .phase {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 0 24px;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.5s, transform 0.5s;
+  }
+  .phase.vis { opacity: 1; transform: none; }
+
+  .phase-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .phase-num {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .phase-num.c-green  { background: rgba(0,232,122,0.12);  color: var(--green);  border: 1.5px solid rgba(0,232,122,0.4); }
+  .phase-num.c-blue   { background: rgba(56,189,248,0.12); color: var(--blue);   border: 1.5px solid rgba(56,189,248,0.4); }
+  .phase-num.c-orange { background: rgba(251,146,60,0.12); color: var(--orange); border: 1.5px solid rgba(251,146,60,0.4); }
+  .phase-num.c-purple { background: rgba(167,139,250,0.12);color: var(--purple); border: 1.5px solid rgba(167,139,250,0.4); }
+
+  .phase-line {
+    flex: 1;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--border), transparent);
+    margin: 6px 0;
+    min-height: 32px;
+  }
+
+  .phase-body {
+    padding-bottom: 48px;
+  }
+
+  .phase-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    display: inline-block;
+  }
+  .tag-green  { color: var(--green);  background: rgba(0,232,122,0.08);  border: 1px solid rgba(0,232,122,0.2); }
+  .tag-blue   { color: var(--blue);   background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); }
+  .tag-orange { color: var(--orange); background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.2); }
+  .tag-purple { color: var(--purple); background: rgba(167,139,250,0.08);border: 1px solid rgba(167,139,250,0.2); }
+
+  .phase-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .phase-desc {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+  .phase-desc strong { color: var(--text); font-weight: 400; }
+
+  /* ─── CODE SNIPPETS ─────────────────────────────── */
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .code-filename {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .code-dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #f87171; opacity: 0.5; }
+  .dot-y { background: #fbbf24; opacity: 0.5; }
+  .dot-g { background: #34d399; opacity: 0.5; }
+
+  pre {
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .kw  { color: var(--purple); }
+  .fn  { color: var(--blue); }
+  .str { color: var(--green); }
+  .cm  { color: var(--muted); font-style: italic; }
+  .num { color: var(--orange); }
+  .var { color: #f1f5f9; }
+
+  /* ─── ANALOGY BOXES ─────────────────────────────── */
+  .analogy {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: rgba(56,189,248,0.05);
+    border: 1px solid rgba(56,189,248,0.15);
+    margin-top: 4px;
+  }
+  .analogy-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+  .analogy-text { font-size: 13px; color: #93c5fd; line-height: 1.6; }
+
+  /* ─── LOOP DIAGRAM ──────────────────────────────── */
+  .loop-diagram {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+  }
+
+  .loop-nodes {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  .lnode {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    position: relative;
+  }
+
+  .lnode-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .lnode-connector {
+    position: absolute;
+    left: 24px;
+    top: 48px;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--border) 60%, transparent);
+    z-index: 0;
+  }
+
+  .lnode-content { padding-bottom: 36px; flex: 1; }
+  .lnode-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .lnode-text  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  .loop-arrow-back {
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .back-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--orange);
+    writing-mode: vertical-rl;
+    letter-spacing: 0.1em;
+    padding: 8px 4px;
+    border: 1px solid rgba(251,146,60,0.3);
+    background: rgba(251,146,60,0.07);
+    border-radius: 4px;
+  }
+
+  /* ─── DATA FLOW ─────────────────────────────────── */
+  .data-flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .data-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .data-box-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .data-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 4px 0;
+  }
+  .data-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 20px;
+    color: var(--muted);
+  }
+  .flow-arrow span { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+
+  /* ─── MINI CARDS ────────────────────────────────── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .mini-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .mini-card-icon { font-size: 24px; margin-bottom: 8px; }
+  .mini-card-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .mini-card-text  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .mini-card-url   { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--blue); margin-top: 6px; }
+
+  /* ─── SUMMARY TABLE ─────────────────────────────── */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .summary-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .summary-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(30,45,69,0.6);
+    vertical-align: top;
+  }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .step-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  /* ─── DIVIDER ───────────────────────────────────── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0 24px;
+  }
+
+  /* ─── FOOTER ────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ─── ANIMATIONS ────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes bounce {
+    0%,100% { transform: translateY(0); }
+    50%      { transform: translateY(8px); }
+  }
+
+  @keyframes pulse-dot {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,232,122,0.4); }
+    50%      { box-shadow: 0 0 0 8px rgba(0,232,122,0); }
+  }
+
+  .pulse { animation: pulse-dot 2s infinite; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HERO ════════════════════════════════ -->
+<section class="hero">
+  <div class="grid-bg"></div>
+
+  <div class="file-badge">📄 weather_agent.py</div>
+
+  <h1>这段代码<br><span>到底做了什么？</span></h1>
+  <p class="subtitle">一图看懂 AI Agent 的完整执行流程 — 从你敲下回车，到收到天气建议</p>
+
+  <div class="concept-row">
+    <div class="pill green">你的问题</div>
+    <div class="arrow-icon">→</div>
+    <div class="pill blue">DeepSeek 决策</div>
+    <div class="arrow-icon">→</div>
+    <div class="pill orange">调用工具取数据</div>
+    <div class="arrow-icon">→</div>
+    <div class="pill green">综合回答</div>
+  </div>
+
+  <div class="scroll-hint">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    向下滚动
+  </div>
+</section>
+
+<!-- ═══════════════════════════ PHASES ══════════════════════════════════ -->
+<div class="section">
+  <div class="section-label observe">执行流程</div>
+  <div class="section-title observe">Python 从上到下，依次做了这 6 件事</div>
+
+  <div class="phases">
+
+    <!-- ── Phase 1 ── -->
+    <div class="phase observe">
+      <div class="phase-left">
+        <div class="phase-num c-green pulse">01</div>
+        <div class="phase-line"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-tag tag-green">程序启动</div>
+        <div class="phase-title">加载三样"装备"</div>
+        <div class="phase-desc">
+          Python 读到文件顶部，先 import 三个库：<br>
+          <strong>json</strong>（处理数据格式）、<strong>os</strong>（读取系统环境变量）、<strong>requests</strong>（发网络请求）、<strong>OpenAI SDK</strong>（连接 DeepSeek）。
+          这就像出门前检查装备，缺一不可。
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+            <div class="code-filename">weather_agent.py · 行 6–9</div>
+          </div>
+          <pre><span class="kw">import</span> <span class="var">json</span>
+<span class="kw">import</span> <span class="var">os</span>
+<span class="kw">import</span> <span class="var">requests</span>
+<span class="kw">from</span> <span class="var">openai</span> <span class="kw">import</span> <span class="var">OpenAI</span></pre>
+        </div>
+        <div class="analogy">
+          <div class="analogy-icon">🎒</div>
+          <div class="analogy-text">就像上学前要把课本、铅笔、橡皮装进书包 — import 就是把工具"装进"程序。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Phase 2 ── -->
+    <div class="phase observe">
+      <div class="phase-left">
+        <div class="phase-num c-blue">02</div>
+        <div class="phase-line"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-tag tag-blue">初始化</div>
+        <div class="phase-title">创建 AI 客户端 + 定义工具菜单</div>
+        <div class="phase-desc">
+          创建一个连接 DeepSeek 的"电话"（client），然后列出两个工具的"说明书"（TOOLS）—— 就像给 AI 一份菜单，告诉它："你有这两个工具可以点"。
+          <strong>AI 自己看说明书决定要不要用、怎么用。</strong>
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+            <div class="code-filename">weather_agent.py · 行 12–60</div>
+          </div>
+          <pre><span class="var">client</span> = <span class="fn">OpenAI</span>(
+    <span class="var">api_key</span>=<span class="var">os</span>.<span class="fn">environ</span>.<span class="fn">get</span>(<span class="str">"DEEPSEEK_API_KEY"</span>),
+    <span class="var">base_url</span>=<span class="str">"https://api.deepseek.com"</span>,
+)
+
+<span class="var">TOOLS</span> = [
+    { <span class="str">"name"</span>: <span class="str">"get_weather"</span>, <span class="str">"description"</span>: <span class="str">"获取城市天气..."</span> },
+    { <span class="str">"name"</span>: <span class="str">"get_aqi"</span>,     <span class="str">"description"</span>: <span class="str">"获取空气质量..."</span> },
+]</pre>
+        </div>
+
+        <div class="card-grid">
+          <div class="mini-card">
+            <div class="mini-card-icon">🌤️</div>
+            <div class="mini-card-title">get_weather</div>
+            <div class="mini-card-text">温度、湿度、风速、能见度、UV 指数</div>
+            <div class="mini-card-url">wttr.in/{city}?format=j1</div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-card-icon">💨</div>
+            <div class="mini-card-title">get_aqi</div>
+            <div class="mini-card-text">AQI 数值、PM2.5、等级判断、户外建议</div>
+            <div class="mini-card-url">api.waqi.info/feed/{city}</div>
+          </div>
+        </div>
+
+        <div class="analogy" style="margin-top:12px">
+          <div class="analogy-icon">📋</div>
+          <div class="analogy-text">TOOLS 是"工具说明书"，不是工具本身。AI 读了说明书之后，才知道"哦，我可以查天气"。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Phase 3 ── -->
+    <div class="phase observe">
+      <div class="phase-left">
+        <div class="phase-num c-green">03</div>
+        <div class="phase-line"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-tag tag-green">入口触发</div>
+        <div class="phase-title"><code style="font-size:14px;color:var(--green)">if __name__ == "__main__"</code> 触发程序</div>
+        <div class="phase-desc">
+          直接运行 <strong>python3 weather_agent.py</strong> 时，这个条件为真，开始执行查询。
+          如果是被其他文件 import，这里的代码就<strong>不会执行</strong>，防止一导入就自动发请求。
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+            <div class="code-filename">weather_agent.py · 行 224–232</div>
+          </div>
+          <pre><span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    queries = [
+        <span class="str">"北京今天天气怎么样，适合出门跑步吗？"</span>,
+        <span class="str">"上海明天适合去公园散步吗？"</span>,
+    ]
+    <span class="kw">for</span> q <span class="kw">in</span> queries:
+        <span class="fn">run_agent</span>(q)  <span class="cm"># 每个问题跑一遍</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Phase 4 ── -->
+    <div class="phase observe">
+      <div class="phase-left">
+        <div class="phase-num c-orange">04</div>
+        <div class="phase-line"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-tag tag-orange">Agent 核心</div>
+        <div class="phase-title">run_agent() — 构建消息 → 发给 DeepSeek</div>
+        <div class="phase-desc">
+          每次调用 run_agent，都会先把<strong>三条消息</strong>打包：系统角色设定 + 用户问题，然后连同工具菜单一起发给 DeepSeek，等待它"思考"。
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+            <div class="code-filename">weather_agent.py · 行 167–184</div>
+          </div>
+          <pre><span class="kw">def</span> <span class="fn">run_agent</span>(user_query):
+    messages = [
+        {<span class="str">"role"</span>: <span class="str">"system"</span>,  <span class="str">"content"</span>: SYSTEM_PROMPT},
+        {<span class="str">"role"</span>: <span class="str">"user"</span>,    <span class="str">"content"</span>: user_query},
+    ]
+
+    <span class="kw">while</span> <span class="num">True</span>:  <span class="cm"># ← Agentic Loop 开始</span>
+        response = client.chat.completions.<span class="fn">create</span>(
+            model=<span class="str">"deepseek-chat"</span>,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice=<span class="str">"auto"</span>,  <span class="cm"># 让 AI 自己决定</span>
+        )</pre>
+        </div>
+
+        <div class="data-flow">
+          <div class="data-box">
+            <div class="data-box-title">发出去的消息包</div>
+            <div class="data-item"><div class="data-dot" style="background:var(--purple)"></div><span style="color:var(--purple)">system</span>&nbsp;天气播报员角色设定</div>
+            <div class="data-item"><div class="data-dot" style="background:var(--blue)"></div><span style="color:var(--blue)">user</span>&nbsp;北京今天天气怎么样？</div>
+            <div class="data-item"><div class="data-dot" style="background:var(--orange)"></div><span style="color:var(--orange)">tools</span>&nbsp;get_weather / get_aqi 说明书</div>
+          </div>
+          <div class="flow-arrow">→<span>HTTP</span></div>
+          <div class="data-box">
+            <div class="data-box-title">DeepSeek 返回</div>
+            <div class="data-item"><div class="data-dot" style="background:var(--green)"></div>finish_reason: <span style="color:var(--green)">"tool_calls"</span></div>
+            <div class="data-item"><div class="data-dot" style="background:var(--orange)"></div>调用 get_weather("北京")</div>
+            <div class="data-item"><div class="data-dot" style="background:var(--orange)"></div>调用 get_aqi("北京")</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Phase 5 ── -->
+    <div class="phase observe">
+      <div class="phase-left">
+        <div class="phase-num c-orange">05</div>
+        <div class="phase-line"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-tag tag-orange">Agentic Loop 核心</div>
+        <div class="phase-title">执行工具 → 把结果喂回去 → 循环</div>
+
+        <div class="loop-diagram">
+          <div class="loop-nodes">
+
+            <div class="lnode">
+              <div style="position:relative">
+                <div class="lnode-icon" style="background:rgba(56,189,248,0.1);border:1.5px solid rgba(56,189,248,0.3)">🤖</div>
+                <div class="lnode-connector"></div>
+              </div>
+              <div class="lnode-content">
+                <div class="lnode-title" style="color:var(--blue)">DeepSeek 决定调用工具</div>
+                <div class="lnode-text"><code style="color:var(--green);font-family:JetBrains Mono">finish_reason == "tool_calls"</code>，取出 msg.tool_calls 列表</div>
+              </div>
+            </div>
+
+            <div class="lnode">
+              <div style="position:relative">
+                <div class="lnode-icon" style="background:rgba(251,146,60,0.1);border:1.5px solid rgba(251,146,60,0.3)">⚙️</div>
+                <div class="lnode-connector"></div>
+              </div>
+              <div class="lnode-content">
+                <div class="lnode-title" style="color:var(--orange)">execute_tool() 分发执行</div>
+                <div class="lnode-text">查字典 TOOL_HANDLERS → 调对应函数 → 真实发起 HTTP 请求 → 返回 JSON 字符串</div>
+              </div>
+            </div>
+
+            <div class="lnode">
+              <div style="position:relative">
+                <div class="lnode-icon" style="background:rgba(0,232,122,0.1);border:1.5px solid rgba(0,232,122,0.3)">🌐</div>
+                <div class="lnode-connector"></div>
+              </div>
+              <div class="lnode-content">
+                <div class="lnode-title" style="color:var(--green)">外部 API 返回真实数据</div>
+                <div class="lnode-text">wttr.in → 32°C、晴天、湿度45%&emsp;|&emsp;WAQI → AQI=127、轻度污染</div>
+              </div>
+            </div>
+
+            <div class="lnode">
+              <div style="position:relative">
+                <div class="lnode-icon" style="background:rgba(167,139,250,0.1);border:1.5px solid rgba(167,139,250,0.3)">📨</div>
+                <div class="lnode-connector"></div>
+              </div>
+              <div class="lnode-content">
+                <div class="lnode-title" style="color:var(--purple)">结果追加进 messages</div>
+                <div class="lnode-text"><code style="color:var(--purple);font-family:JetBrains Mono">role: "tool"</code> 消息追加，带上 tool_call_id 配对，再次调用 API</div>
+              </div>
+            </div>
+
+            <div class="lnode">
+              <div>
+                <div class="lnode-icon" style="background:rgba(0,232,122,0.1);border:1.5px solid rgba(0,232,122,0.3)">✅</div>
+              </div>
+              <div class="lnode-content" style="padding-bottom:0">
+                <div class="lnode-title" style="color:var(--green)">DeepSeek 综合数据，返回最终答案</div>
+                <div class="lnode-text"><code style="color:var(--green);font-family:JetBrains Mono">finish_reason == "stop"</code> → 跳出循环，返回 msg.content</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="analogy" style="margin-top:16px">
+          <div class="analogy-icon">🍳</div>
+          <div class="analogy-text"><strong style="color:white">厨师点菜类比：</strong>你（用户）点了"跑步建议"，大厨（DeepSeek）说"我需要天气和空气质量"，服务员（execute_tool）去厨房取来食材，大厨把菜做好端上来。整个过程 <strong style="color:white">while True</strong> 就是"大厨工作中"的状态，直到菜做完才停。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Phase 6 ── -->
+    <div class="phase observe">
+      <div class="phase-left">
+        <div class="phase-num c-purple">06</div>
+        <div class="phase-line" style="background:transparent"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-tag tag-purple">输出结果</div>
+        <div class="phase-title">打印 + 返回最终回答</div>
+        <div class="phase-desc">
+          <strong>finish_reason == "stop"</strong> 时，循环结束，把 AI 的回答打印出来并返回。
+          如果遇到 length（太长被截断）或 content_filter（内容过滤），则返回错误提示。
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+            <div class="code-filename">weather_agent.py · 行 209–219</div>
+          </div>
+          <pre><span class="kw">elif</span> finish_reason == <span class="str">"stop"</span>:
+    final_answer = msg.content
+    <span class="fn">print</span>(<span class="str">f"Agent 回答:\n{final_answer}"</span>)
+    <span class="kw">return</span> final_answer   <span class="cm"># ← 跳出 while True</span>
+
+<span class="kw">else</span>:
+    <span class="kw">return</span> <span class="str">f"[未完成，停止原因: {finish_reason}]"</span></pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════ SUMMARY ════════════════════════════════ -->
+<div class="section">
+  <div class="section-label observe">速查表</div>
+  <div class="section-title observe">一张表看完所有执行步骤</div>
+
+  <div class="code-block observe">
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>步骤</th>
+          <th>发生了什么</th>
+          <th>关键代码</th>
+          <th>是否联网</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(0,232,122,0.1);color:var(--green);border:1px solid rgba(0,232,122,0.2)">① 启动</span></td>
+          <td>import 库，创建 DeepSeek client</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">OpenAI(base_url=...)</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(0,232,122,0.1);color:var(--green);border:1px solid rgba(0,232,122,0.2)">② 定义</span></td>
+          <td>准备工具说明书 TOOLS</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">TOOLS = [...]</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(56,189,248,0.1);color:var(--blue);border:1px solid rgba(56,189,248,0.2)">③ 触发</span></td>
+          <td>__main__ 调用 run_agent(问题)</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">run_agent(q)</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(251,146,60,0.1);color:var(--orange);border:1px solid rgba(251,146,60,0.2)">④ 第1次请求</span></td>
+          <td>把问题 + 工具菜单发给 DeepSeek</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">completions.create()</code></td>
+          <td>✅ DeepSeek API</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(251,146,60,0.1);color:var(--orange);border:1px solid rgba(251,146,60,0.2)">⑤ AI决策</span></td>
+          <td>AI 返回 "我要调工具"</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">finish_reason="tool_calls"</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(251,146,60,0.1);color:var(--orange);border:1px solid rgba(251,146,60,0.2)">⑥ 执行工具</span></td>
+          <td>调 get_weather + get_aqi 取真实数据</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">execute_tool()</code></td>
+          <td>✅ wttr.in / WAQI</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(251,146,60,0.1);color:var(--orange);border:1px solid rgba(251,146,60,0.2)">⑦ 喂结果</span></td>
+          <td>把工具数据追加进 messages</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">messages.append(role="tool")</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(251,146,60,0.1);color:var(--orange);border:1px solid rgba(251,146,60,0.2)">⑧ 第2次请求</span></td>
+          <td>携带数据再次问 DeepSeek</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">completions.create()</code></td>
+          <td>✅ DeepSeek API</td>
+        </tr>
+        <tr>
+          <td><span class="step-badge" style="background:rgba(167,139,250,0.1);color:var(--purple);border:1px solid rgba(167,139,250,0.2)">⑨ 完成</span></td>
+          <td>AI 综合数据，输出最终建议</td>
+          <td><code style="font-family:JetBrains Mono;font-size:11px;color:var(--blue)">finish_reason="stop"</code></td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="analogy observe" style="margin-top: 24px; background: rgba(0,232,122,0.04); border-color: rgba(0,232,122,0.15);">
+    <div class="analogy-icon">💡</div>
+    <div class="analogy-text" style="color: var(--text)">
+      <strong style="color:var(--green)">核心概念：Agentic Loop</strong><br>
+      while True 循环不是"死循环"，而是让 AI 可以<strong style="color:white">反复使用工具</strong>直到任务完成。
+      每一轮：AI思考 → 要工具 → 我们执行 → 把结果告诉AI → AI继续思考……直到 AI 说"我说完了"（stop）才退出。
+      这是所有 AI Agent 最核心的工作模式。
+    </div>
+  </div>
+</div>
+
+<footer>weather_agent.py · DeepSeek Function Calling · Agentic Loop Pattern</footer>
+
+<script>
+  // Intersection Observer — animate elements as they scroll into view
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('vis');
+        // Stagger child phases
+        if (e.target.classList.contains('phase')) {
+          const siblings = e.target.parentElement.querySelectorAll('.phase');
+          siblings.forEach((s, i) => {
+            setTimeout(() => s.classList.add('vis'), i * 80);
+          });
+        }
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.observe, .phase, .section-label, .section-title').forEach(el => {
+    obs.observe(el);
+  });
+</script>
+</body>
+</html>
