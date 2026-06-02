@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# ChromaDB 生成的向量索引（本地运行时自动重建）
+chroma_db/
+
+# SQLite 演示数据库
+*.db
+
+# macOS
+.DS_Store
+
+# Python 虚拟环境
+.venv/
+venv/
+env/

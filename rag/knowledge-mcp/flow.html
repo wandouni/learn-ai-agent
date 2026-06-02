@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档知识库 MCP — 交互流程图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Fira+Code:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090f;
+  --bg2: #0e1019;
+  --bg3: #141620;
+  --border: #1e2130;
+  --border2: #262940;
+  --green: #00e5a0;
+  --green-dim: rgba(0,229,160,0.12);
+  --green-glow: rgba(0,229,160,0.35);
+  --blue: #3b9eff;
+  --blue-dim: rgba(59,158,255,0.12);
+  --amber: #ffbe0b;
+  --amber-dim: rgba(255,190,11,0.12);
+  --pink: #ff5fa0;
+  --pink-dim: rgba(255,95,160,0.12);
+  --purple: #a78bfa;
+  --text: #d4d8f0;
+  --text-dim: #6b7080;
+  --text-bright: #f0f2ff;
+  --radius: 12px;
+  --mono: 'Fira Code', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+  --display: 'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.7;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── NOISE TEXTURE ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 200px;
+  opacity: 0.5;
+}
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+/* ── HERO ── */
+.hero {
+  padding: 72px 0 56px;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--green-dim); border: 1px solid rgba(0,229,160,0.25);
+  color: var(--green); border-radius: 99px; padding: 6px 16px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
+  margin-bottom: 28px;
+}
+.hero-badge::before { content: '●'; animation: blink 1.5s infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.hero h1 {
+  font-family: var(--display); font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 800; color: var(--text-bright); line-height: 1.15;
+  margin-bottom: 16px;
+}
+.hero h1 span { color: var(--green); }
+.hero p { font-size: 17px; color: var(--text-dim); max-width: 560px; margin: 0 auto; }
+
+/* ── SECTION ── */
+.section { padding: 64px 0; }
+.section-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+  color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px;
+}
+.section-title {
+  font-family: var(--display); font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: 700; color: var(--text-bright); margin-bottom: 12px;
+}
+.section-sub { font-size: 15px; color: var(--text-dim); max-width: 600px; margin-bottom: 40px; }
+
+/* ── ANALOGY CARDS ── */
+.analogy-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;
+}
+.analogy-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px 20px; text-align: center;
+  transition: border-color .2s, transform .2s;
+  cursor: default;
+}
+.analogy-card:hover { border-color: var(--border2); transform: translateY(-3px); }
+.analogy-icon { font-size: 2.2rem; margin-bottom: 12px; display: block; }
+.analogy-name { font-family: var(--mono); font-size: 12px; color: var(--green); margin-bottom: 6px; }
+.analogy-real { font-size: 12px; color: var(--text-dim); }
+.analogy-arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; color: var(--border2); padding-top: 28px;
+  flex-shrink: 0;
+}
+
+/* ── ARCHITECTURE DIAGRAM ── */
+.arch-wrapper {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px; overflow: hidden;
+}
+.arch-title {
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 32px;
+  text-align: center;
+}
+
+/* Phase tabs */
+.phase-tabs {
+  display: flex; gap: 8px; margin-bottom: 32px; justify-content: center;
+}
+.phase-tab {
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text-dim); border-radius: 8px; padding: 8px 20px;
+  font-family: var(--mono); font-size: 12px; cursor: pointer;
+  transition: all .2s;
+}
+.phase-tab.active {
+  background: var(--green-dim); border-color: rgba(0,229,160,0.4);
+  color: var(--green);
+}
+
+/* Diagram nodes */
+.diagram {
+  position: relative; min-height: 300px;
+}
+.diagram.hidden { display: none; }
+
+.flow-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; flex-wrap: nowrap;
+}
+.flow-col {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+
+.node {
+  position: relative;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 16px 20px; min-width: 130px;
+  text-align: center; cursor: pointer;
+  transition: border-color .25s, box-shadow .25s, transform .2s;
+  flex-shrink: 0;
+}
+.node:hover { transform: translateY(-2px); border-color: var(--blue); }
+.node.active-node {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 1px var(--green), 0 0 24px var(--green-glow);
+  animation: nodePop .35s ease;
+}
+@keyframes nodePop {
+  0%  { transform: scale(1); }
+  50% { transform: scale(1.06); }
+  100%{ transform: scale(1); }
+}
+.node.pulse-node {
+  border-color: var(--amber) !important;
+  box-shadow: 0 0 0 1px var(--amber), 0 0 24px rgba(255,190,11,.35);
+}
+.node-icon { font-size: 1.6rem; margin-bottom: 6px; }
+.node-name { font-family: var(--mono); font-size: 11px; color: var(--text-bright); }
+.node-tag  { font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+
+/* Connectors */
+.conn {
+  display: flex; align-items: center; flex-shrink: 0; width: 52px; position: relative;
+}
+.conn-line {
+  width: 100%; height: 2px;
+  background: var(--border2);
+  position: relative; overflow: visible;
+}
+.conn-line::after {
+  content: '';
+  position: absolute; top: 50%; right: 0;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-left-color: var(--border2);
+}
+.conn.active-conn .conn-line {
+  background: var(--green);
+}
+.conn.active-conn .conn-line::after {
+  border-left-color: var(--green);
+}
+.conn-dot {
+  position: absolute; top: 50%; left: 0;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); transform: translateY(-50%);
+  opacity: 0;
+}
+.conn.active-conn .conn-dot {
+  animation: moveDot .6s ease forwards;
+}
+@keyframes moveDot {
+  0%   { left: 0;    opacity: 1; }
+  100% { left: calc(100% - 8px); opacity: 1; }
+}
+
+.conn-vert {
+  display: flex; flex-direction: column; align-items: center;
+  height: 44px; position: relative; flex-shrink: 0;
+}
+.conn-vert-line {
+  width: 2px; flex: 1; background: var(--border2);
+  position: relative;
+}
+.conn-vert-line::after {
+  content: '';
+  position: absolute; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border2);
+}
+.conn-vert.active-conn .conn-vert-line { background: var(--green); }
+.conn-vert.active-conn .conn-vert-line::after { border-top-color: var(--green); }
+
+/* Return line */
+.return-row {
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 12px; gap: 0;
+}
+.return-line {
+  height: 2px; background: var(--border2); flex: 1;
+  position: relative; max-width: 480px;
+}
+.return-line.active-conn { background: var(--amber); }
+.return-arrow {
+  font-size: 14px; color: var(--border2); margin: 0 8px;
+}
+.return-label {
+  font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+  text-align: center; margin-top: 6px;
+}
+
+/* Sim controls */
+.sim-panel {
+  margin-top: 32px; padding: 20px 24px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex; align-items: flex-start; gap: 20px;
+  flex-wrap: wrap;
+}
+.sim-btn {
+  background: var(--green-dim); border: 1px solid rgba(0,229,160,.35);
+  color: var(--green); border-radius: 8px; padding: 10px 20px;
+  font-family: var(--mono); font-size: 12px; cursor: pointer;
+  white-space: nowrap; transition: all .2s; flex-shrink: 0;
+}
+.sim-btn:hover { background: rgba(0,229,160,.2); }
+.sim-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sim-status {
+  flex: 1; min-width: 200px;
+}
+.sim-step {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-dim); margin-bottom: 4px;
+}
+.sim-msg { font-size: 14px; color: var(--text-bright); min-height: 20px; }
+.sim-progress {
+  display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap;
+}
+.sim-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border2); transition: background .3s;
+}
+.sim-dot.done { background: var(--green); }
+.sim-dot.current { background: var(--amber); }
+
+/* ── NODE DETAIL PANEL ── */
+.detail-panel {
+  display: none; position: fixed;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 14px; padding: 28px 32px;
+  width: min(560px, 92vw); max-height: 80vh; overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 24px 80px rgba(0,0,0,.7);
+}
+.detail-panel.open { display: block; animation: panelIn .2s ease; }
+@keyframes panelIn {
+  from { opacity: 0; transform: translate(-50%, -48%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+.detail-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.6); z-index: 99; cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+.detail-overlay.open { display: block; }
+.detail-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.detail-icon { font-size: 1.8rem; }
+.detail-title { font-family: var(--display); font-size: 1.2rem; color: var(--text-bright); font-weight: 700; }
+.detail-file {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--green); background: var(--green-dim);
+  border: 1px solid rgba(0,229,160,.2); border-radius: 4px;
+  padding: 2px 8px; margin-bottom: 14px; display: inline-block;
+}
+.detail-desc { font-size: 14px; color: var(--text); line-height: 1.8; margin-bottom: 18px; }
+.code-block {
+  background: #0d1117; border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; overflow-x: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.8;
+  color: #c9d1d9; margin-bottom: 4px;
+}
+.code-block .kw { color: #ff7b72; }
+.code-block .fn { color: #d2a8ff; }
+.code-block .str { color: #a5d6ff; }
+.code-block .cm { color: #8b949e; font-style: italic; }
+.code-block .num { color: #79c0ff; }
+.detail-close {
+  position: absolute; top: 16px; right: 16px;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text-dim); width: 28px; height: 28px;
+  border-radius: 6px; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.detail-close:hover { color: var(--text-bright); border-color: var(--border2); }
+
+/* ── TOOLS SECTION ── */
+.tools-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;
+}
+.tool-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.tool-card:hover { border-color: var(--border2); transform: translateY(-3px); }
+.tool-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.tool-num { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-bottom: 4px; }
+.tool-name { font-family: var(--mono); font-size: 15px; color: var(--green); font-weight: 500; }
+.tool-desc { font-size: 13px; color: var(--text-dim); margin-top: 6px; }
+.tool-body { padding: 16px 24px 20px; }
+.io-label { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-bottom: 6px; letter-spacing: .08em; }
+.io-box {
+  background: #0d1117; border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: var(--mono); font-size: 12px; color: #c9d1d9;
+  line-height: 1.7; margin-bottom: 12px; white-space: pre-wrap;
+}
+.io-box .hl { color: var(--green); }
+.io-box .lb { color: var(--blue); }
+.io-box .am { color: var(--amber); }
+
+/* ── FILES SECTION ── */
+.files-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
+}
+.file-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 24px;
+  transition: border-color .2s;
+}
+.file-card:hover { border-color: var(--border2); }
+.file-icon-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.file-emoji { font-size: 1.8rem; }
+.file-name { font-family: var(--mono); font-size: 14px; color: var(--text-bright); }
+.file-role { font-size: 11px; color: var(--text-dim); }
+.responsibility-list { list-style: none; }
+.responsibility-list li {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 13px; color: var(--text); padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.responsibility-list li:last-child { border-bottom: none; }
+.responsibility-list li::before {
+  content: '→'; color: var(--green); font-family: var(--mono);
+  font-size: 11px; margin-top: 3px; flex-shrink: 0;
+}
+
+/* ── FOOTER ── */
+.footer {
+  text-align: center; padding: 40px 0 60px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  border-top: 1px solid var(--border);
+}
+
+/* ── UTILITIES ── */
+.divider { height: 1px; background: var(--border); margin: 8px 0 48px; }
+.tag {
+  display: inline-block; font-family: var(--mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 4px; margin-right: 4px;
+}
+.tag-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,229,160,.2); }
+.tag-blue  { background: var(--blue-dim);  color: var(--blue);  border: 1px solid rgba(59,158,255,.2); }
+.tag-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,190,11,.2); }
+
+/* scroll-reveal */
+.reveal { opacity: 0; transform: translateY(20px); transition: opacity .5s ease, transform .5s ease; }
+.reveal.visible { opacity: 1; transform: none; }
+</style>
+</head>
+
+<body>
+<!-- ── HERO ── -->
+<div class="wrap">
+  <div class="hero">
+    <div class="hero-badge">知识库 MCP Server · 代码交互流程</div>
+    <h1>让 Claude 拥有<br><span>查文档的超能力</span></h1>
+    <p>点击任意节点查看源码解读，点击模拟按钮看数据如何在各模块之间流动 📡</p>
+  </div>
+</div>
+
+<!-- ── ANALOGY ── -->
+<div class="wrap section reveal">
+  <div class="section-label">// 先来个接地气的比喻</div>
+  <div class="section-title">把这个系统想象成一座图书馆 📚</div>
+  <div class="section-sub">技术归技术，先理解再看代码</div>
+  <div class="analogy-grid">
+    <div class="analogy-card">
+      <span class="analogy-icon">📄</span>
+      <div class="analogy-name">documents/</div>
+      <div class="analogy-real">一排排厚厚的书架，放着你的 PDF 和 TXT</div>
+    </div>
+    <div class="analogy-arrow">→</div>
+    <div class="analogy-card">
+      <span class="analogy-icon">📇</span>
+      <div class="analogy-name">ChromaDB</div>
+      <div class="analogy-real">图书馆员做的索引卡片盒，每张卡片是500字精华摘录</div>
+    </div>
+    <div class="analogy-arrow">→</div>
+    <div class="analogy-card">
+      <span class="analogy-icon">🔮</span>
+      <div class="analogy-name">Embedding</div>
+      <div class="analogy-real">把文字变成数字向量，让"连续失败"和"锁定"被识别为同义词</div>
+    </div>
+    <div class="analogy-arrow">→</div>
+    <div class="analogy-card">
+      <span class="analogy-icon">🤖</span>
+      <div class="analogy-name">Claude Desktop</div>
+      <div class="analogy-real">来查资料的学生，问问题 → 馆员帮找 → 学生自己写答案</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ARCHITECTURE DIAGRAM ── -->
+<div class="wrap section reveal">
+  <div class="section-label">// 系统架构</div>
+  <div class="section-title">代码如何分工协作</div>
+  <div class="section-sub">点击任意模块查看源码解读，然后点"模拟"按钮看数据流动</div>
+
+  <div class="arch-wrapper">
+    <div class="arch-title">// INTERACTIVE ARCHITECTURE DIAGRAM · click any node</div>
+
+    <div class="phase-tabs">
+      <button class="phase-tab active" onclick="switchPhase('index')">🚀 阶段一：启动 & 索引</button>
+      <button class="phase-tab" onclick="switchPhase('query')">🔍 阶段二：查询流程</button>
+    </div>
+
+    <!-- Phase 1: Indexing -->
+    <div class="diagram" id="diagram-index">
+      <div class="flow-col" style="align-items:center;">
+        <div class="flow-row" style="margin-bottom:12px;">
+          <div class="node" id="n-server" onclick="showDetail('server')">
+            <div class="node-icon">⚙️</div>
+            <div class="node-name">server.py</div>
+            <div class="node-tag">MCP 入口</div>
+          </div>
+        </div>
+        <div class="conn-vert" id="c-sv-idx">
+          <div class="conn-vert-line"></div>
+        </div>
+        <div class="flow-row">
+          <div class="node" id="n-docs" onclick="showDetail('docs')">
+            <div class="node-icon">📁</div>
+            <div class="node-name">documents/</div>
+            <div class="node-tag">PDF · TXT</div>
+          </div>
+          <div class="conn" id="c-docs-idx">
+            <div class="conn-line"><div class="conn-dot"></div></div>
+          </div>
+          <div class="node" id="n-indexer" onclick="showDetail('indexer')">
+            <div class="node-icon">✂️</div>
+            <div class="node-name">indexer.py</div>
+            <div class="node-tag">读取 · 切块 · 向量化</div>
+          </div>
+          <div class="conn" id="c-idx-chroma">
+            <div class="conn-line"><div class="conn-dot"></div></div>
+          </div>
+          <div class="node" id="n-chroma" onclick="showDetail('chroma')">
+            <div class="node-icon">🗄️</div>
+            <div class="node-name">ChromaDB</div>
+            <div class="node-tag">向量索引持久化</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2: Query -->
+    <div class="diagram hidden" id="diagram-query">
+      <div class="flow-col" style="align-items:center;">
+        <div class="flow-row">
+          <div class="node" id="n-claude" onclick="showDetail('claude')">
+            <div class="node-icon">🤖</div>
+            <div class="node-name">Claude Desktop</div>
+            <div class="node-tag">用户提问</div>
+          </div>
+          <div class="conn" id="c-cl-srv">
+            <div class="conn-line"><div class="conn-dot"></div></div>
+          </div>
+          <div class="node" id="n-server2" onclick="showDetail('server')">
+            <div class="node-icon">⚙️</div>
+            <div class="node-name">server.py</div>
+            <div class="node-tag">MCP 工具调度</div>
+          </div>
+          <div class="conn" id="c-srv-ret">
+            <div class="conn-line"><div class="conn-dot"></div></div>
+          </div>
+          <div class="node" id="n-retriever" onclick="showDetail('retriever')">
+            <div class="node-icon">🔍</div>
+            <div class="node-name">retriever.py</div>
+            <div class="node-tag">向量检索</div>
+          </div>
+          <div class="conn" id="c-ret-ch">
+            <div class="conn-line"><div class="conn-dot"></div></div>
+          </div>
+          <div class="node" id="n-chroma2" onclick="showDetail('chroma')">
+            <div class="node-icon">🗄️</div>
+            <div class="node-name">ChromaDB</div>
+            <div class="node-tag">最近邻查询</div>
+          </div>
+        </div>
+        <div style="width:100%;max-width:680px;margin-top:4px;">
+          <div class="return-row">
+            <div class="return-line" id="c-return"></div>
+          </div>
+          <div class="return-label" id="return-label" style="color:var(--border2);">← 结果段落返回 · Claude 整合生成回答</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulation panel -->
+    <div class="sim-panel">
+      <button class="sim-btn" id="sim-btn" onclick="runSim()">▶ 模拟运行</button>
+      <button class="sim-btn" style="background:var(--bg3);border-color:var(--border);color:var(--text-dim);" onclick="resetSim()">↺ 重置</button>
+      <div class="sim-status">
+        <div class="sim-step" id="sim-step">点击 ▶ 开始模拟</div>
+        <div class="sim-msg" id="sim-msg">–</div>
+        <div class="sim-progress" id="sim-progress"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOOLS ── -->
+<div class="wrap section reveal">
+  <div class="section-label">// 三个暴露给 Claude 的工具</div>
+  <div class="section-title">MCP 工具卡片</div>
+  <div class="section-sub">Claude Desktop 看到的就是这三个函数，调用方式和普通函数一样</div>
+
+  <div class="tools-grid">
+    <!-- Tool 1 -->
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-num">TOOL 01 · server.py:43</div>
+        <div class="tool-name">list_documents()</div>
+        <div class="tool-desc">查看知识库里有什么，无需传参</div>
+      </div>
+      <div class="tool-body">
+        <div class="io-label">INPUT</div>
+        <div class="io-box"><span class="am">无参数</span></div>
+        <div class="io-label">OUTPUT</div>
+        <div class="io-box"><span class="hl">知识库已索引文档：</span>
+
+- <span class="lb">操作手册.txt</span>（8 块，索引时间：2025-06-01 10:23:44）
+- <span class="lb">管理规定.txt</span>（9 块，索引时间：2025-06-01 10:23:47）</div>
+        <div class="io-label">USE CASE</div>
+        <div class="io-box" style="color:var(--text-dim);">🧠 让 Claude 先了解知识库里有什么，
+避免检索时胡乱猜测</div>
+      </div>
+    </div>
+
+    <!-- Tool 2 -->
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-num">TOOL 02 · server.py:49</div>
+        <div class="tool-name">search_knowledge_base(query, top_k=3)</div>
+        <div class="tool-desc">核心检索工具，语义而非关键词匹配</div>
+      </div>
+      <div class="tool-body">
+        <div class="io-label">INPUT</div>
+        <div class="io-box"><span class="am">query</span>: <span class="str">"连续登录失败会被锁定吗"</span>
+<span class="am">top_k</span>: <span class="num">3</span></div>
+        <div class="io-label">OUTPUT</div>
+        <div class="io-box"><span class="hl">共找到 1 个相关段落：</span>
+
+【段落 1】
+来源文件：<span class="lb">操作手册.txt</span>  第 2 块
+相似度：<span class="hl">0.8821</span>
+内容：连续5次登录失败后账号将被锁定，
+需联系系统管理员解锁。</div>
+      </div>
+    </div>
+
+    <!-- Tool 3 -->
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-num">TOOL 03 · server.py:61</div>
+        <div class="tool-name">add_document(file_path)</div>
+        <div class="tool-desc">运行时动态入库，零停机</div>
+      </div>
+      <div class="tool-body">
+        <div class="io-label">INPUT</div>
+        <div class="io-box"><span class="am">file_path</span>: <span class="str">"/Users/shenni/新合规政策.pdf"</span></div>
+        <div class="io-label">OUTPUT</div>
+        <div class="io-box"><span class="hl">成功：</span>已将《新合规政策.pdf》
+索引为 <span class="num">12</span> 个切块，
+现在可以立即查询。</div>
+        <div class="io-label">BEHIND THE SCENES</div>
+        <div class="io-box" style="color:var(--text-dim);">→ indexer._read()  读取文件
+→ indexer._chunk() 切500字/50重叠
+→ collection.upsert() 向量存入 ChromaDB</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FILES ── -->
+<div class="wrap section reveal">
+  <div class="section-label">// 文件分工</div>
+  <div class="section-title">每个文件只做一件事</div>
+  <div class="section-sub">高内聚、低耦合——改 retriever 不影响 indexer</div>
+
+  <div class="files-grid">
+    <div class="file-card">
+      <div class="file-icon-row">
+        <span class="file-emoji">⚙️</span>
+        <div>
+          <div class="file-name">server.py</div>
+          <div class="file-role">MCP 入口 · 胶水层</div>
+        </div>
+      </div>
+      <ul class="responsibility-list">
+        <li>初始化 ChromaDB PersistentClient</li>
+        <li>启动时调用 _auto_index() 扫描 documents/</li>
+        <li>用 @mcp.tool() 暴露 3 个工具给 Claude</li>
+        <li>持有全局 _collection 实例，传给 retriever / indexer</li>
+        <li>sys.path 注入确保模块导入无论从哪里启动</li>
+      </ul>
+    </div>
+
+    <div class="file-card">
+      <div class="file-icon-row">
+        <span class="file-emoji">✂️</span>
+        <div>
+          <div class="file-name">indexer.py</div>
+          <div class="file-role">写入端 · 文档 → 向量</div>
+        </div>
+      </div>
+      <ul class="responsibility-list">
+        <li>_read_pdf / _read_txt 读取原始文本</li>
+        <li>_chunk() 按 500 字 / 50 字重叠切块</li>
+        <li>SentenceTransformerEmbeddingFunction 向量化（paraphrase-multilingual）</li>
+        <li>collection.upsert() 安全写入（重复添加不报错）</li>
+        <li>get_or_create_collection() 设置 cosine 距离</li>
+      </ul>
+    </div>
+
+    <div class="file-card">
+      <div class="file-icon-row">
+        <span class="file-emoji">🔍</span>
+        <div>
+          <div class="file-name">retriever.py</div>
+          <div class="file-role">读取端 · 向量 → 答案</div>
+        </div>
+      </div>
+      <ul class="responsibility-list">
+        <li>search() 调用 collection.query_texts 语义检索</li>
+        <li>top_k 钳制在 [1, 5] 防止过量返回</li>
+        <li>cosine distance → similarity = 1 - distance</li>
+        <li>list_documents() 聚合 metadata 统计切块数和时间</li>
+        <li>格式化输出供 Claude 直接整合进回答</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── FOOTER ── -->
+<div class="wrap">
+  <div class="footer">
+    knowledge-mcp · RAG × MCP · paraphrase-multilingual-MiniLM-L12-v2 · ChromaDB · FastMCP
+  </div>
+</div>
+
+<!-- ── NODE DETAIL PANEL ── -->
+<div class="detail-overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">✕</button>
+  <div id="detail-content"></div>
+</div>
+
+<script>
+/* ─── NODE DETAIL DATA ─── */
+const NODES = {
+  server: {
+    icon: '⚙️', title: 'server.py', file: 'server.py',
+    desc: 'MCP Server 的入口文件和胶水层。用 FastMCP 框架暴露工具，启动时自动扫描文档目录，持有 ChromaDB 连接实例并传给其他模块。',
+    code: `<span class="kw">import</span> chromadb
+<span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+<span class="kw">from</span> indexer <span class="kw">import</span> get_or_create_collection, index_document
+<span class="kw">from</span> retriever <span class="kw">import</span> search <span class="kw">as</span> _search
+
+mcp = FastMCP(<span class="str">"文档知识库"</span>)
+_client = chromadb.PersistentClient(path=<span class="str">str(CHROMA_DIR)</span>)
+_collection = get_or_create_collection(_client)
+
+<span class="cm"># 启动时自动索引新文档</span>
+<span class="kw">def</span> <span class="fn">_auto_index</span>():
+    existing = _collection.get(include=[<span class="str">"metadatas"</span>])
+    indexed = {m[<span class="str">"source"</span>] <span class="kw">for</span> m <span class="kw">in</span> existing[<span class="str">"metadatas"</span>] <span class="kw">or</span> []}
+    <span class="kw">for</span> path <span class="kw">in</span> DOCS_DIR.iterdir():
+        <span class="kw">if</span> path.suffix <span class="kw">in</span> {<span class="str">".pdf"</span>, <span class="str">".txt"</span>} <span class="kw">and</span> path.name <span class="kw">not in</span> indexed:
+            index_document(_collection, str(path))
+
+<span class="fn">@mcp.tool</span>()
+<span class="kw">def</span> <span class="fn">search_knowledge_base</span>(query: str, top_k: int = <span class="num">3</span>) -> str:
+    <span class="kw">return</span> _search(_collection, query, top_k)
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    _auto_index()
+    mcp.run(transport=<span class="str">"stdio"</span>)`
+  },
+  indexer: {
+    icon: '✂️', title: 'indexer.py', file: 'indexer.py',
+    desc: '负责所有写入操作：读文档 → 切块 → 向量化 → 存入 ChromaDB。使用 sentence-transformers 的多语言模型，支持中文语义理解。',
+    code: `CHUNK_SIZE = <span class="num">500</span>
+CHUNK_OVERLAP = <span class="num">50</span>
+MODEL_NAME = <span class="str">"paraphrase-multilingual-MiniLM-L12-v2"</span>
+
+<span class="kw">def</span> <span class="fn">_chunk</span>(text: str) -> list[str]:
+    chunks, start = [], <span class="num">0</span>
+    <span class="kw">while</span> start < len(text):
+        chunk = text[start : start + CHUNK_SIZE].strip()
+        <span class="kw">if</span> chunk: chunks.append(chunk)
+        start += CHUNK_SIZE - CHUNK_OVERLAP  <span class="cm"># 50字重叠</span>
+    <span class="kw">return</span> chunks
+
+<span class="kw">def</span> <span class="fn">index_document</span>(collection, file_path: str) -> int:
+    text = _read(file_path)          <span class="cm"># 读 PDF/TXT</span>
+    chunks = _chunk(text)            <span class="cm"># 切块</span>
+    collection.upsert(               <span class="cm"># 向量化 + 存储</span>
+        ids=[f<span class="str">"{filename}__{i}"</span> <span class="kw">for</span> i <span class="kw">in</span> range(len(chunks))],
+        documents=chunks,
+        metadatas=[{<span class="str">"source"</span>: filename, <span class="str">"chunk_index"</span>: i,
+                    <span class="str">"indexed_at"</span>: timestamp}
+                   <span class="kw">for</span> i <span class="kw">in</span> range(len(chunks))],
+    )
+    <span class="kw">return</span> len(chunks)`
+  },
+  retriever: {
+    icon: '🔍', title: 'retriever.py', file: 'retriever.py',
+    desc: '负责所有读取操作：接收查询文本 → 向量化 → 在 ChromaDB 中找最近邻 → 格式化返回结果。余弦距离越小，语义越接近。',
+    code: `<span class="kw">def</span> <span class="fn">search</span>(collection, query: str, top_k: int = <span class="num">3</span>) -> str:
+    top_k = max(<span class="num">1</span>, min(top_k, <span class="num">5</span>))  <span class="cm"># 钳制在 [1,5]</span>
+    results = collection.query(
+        query_texts=[query],          <span class="cm"># 自动向量化</span>
+        n_results=top_k,
+        include=[<span class="str">"documents"</span>, <span class="str">"metadatas"</span>, <span class="str">"distances"</span>],
+    )
+    <span class="kw">for</span> doc, meta, dist <span class="kw">in</span> zip(docs, metas, dists):
+        <span class="cm"># cosine distance → similarity</span>
+        similarity = max(<span class="num">0.0</span>, <span class="num">1.0</span> - dist)
+        lines += [
+            f<span class="str">"来源文件：{meta['source']}  第 {meta['chunk_index']} 块"</span>,
+            f<span class="str">"相似度：{similarity:.4f}"</span>,
+            f<span class="str">"内容：{doc}"</span>,
+        ]`
+  },
+  chroma: {
+    icon: '🗄️', title: 'ChromaDB', file: '自动生成 chroma_db/',
+    desc: '纯本地向量数据库，无需部署任何服务。PersistentClient 把数据存在磁盘上，重启不丢失。使用 HNSW 近似最近邻算法，检索复杂度 O(log n)。',
+    code: `<span class="cm"># 创建集合时指定余弦距离</span>
+collection = client.get_or_create_collection(
+    name=<span class="str">"knowledge_base"</span>,
+    embedding_function=SentenceTransformerEmbeddingFunction(
+        model_name=<span class="str">"paraphrase-multilingual-MiniLM-L12-v2"</span>
+    ),
+    metadata={<span class="str">"hnsw:space"</span>: <span class="str">"cosine"</span>},
+)
+
+<span class="cm"># upsert = insert if not exists, update if exists</span>
+collection.upsert(ids=..., documents=..., metadatas=...)
+
+<span class="cm"># query 自动把文本向量化再检索</span>
+results = collection.query(query_texts=[query], n_results=<span class="num">3</span>)`
+  },
+  docs: {
+    icon: '📁', title: 'documents/', file: 'documents/*.pdf  *.txt',
+    desc: '放置源文档的目录。server.py 启动时自动扫描，发现未索引的文件就调用 indexer 处理。支持 PDF（pdfplumber 解析）和 TXT（原生读取）。',
+    code: `<span class="cm"># _read() 根据后缀分派</span>
+<span class="kw">def</span> <span class="fn">_read</span>(path: str) -> str:
+    ext = Path(path).suffix.lower()
+    <span class="kw">if</span> ext == <span class="str">".pdf"</span>:
+        <span class="kw">return</span> _read_pdf(path)   <span class="cm"># pdfplumber</span>
+    <span class="kw">if</span> ext == <span class="str">".txt"</span>:
+        <span class="kw">return</span> _read_txt(path)   <span class="cm"># open() UTF-8</span>
+    <span class="kw">raise</span> ValueError(f<span class="str">"不支持的文件类型：{ext}"</span>)
+
+<span class="cm"># 启动时只索引新文件</span>
+indexed = {m[<span class="str">"source"</span>] <span class="kw">for</span> m <span class="kw">in</span> existing_meta}
+<span class="kw">for</span> path <span class="kw">in</span> DOCS_DIR.iterdir():
+    <span class="kw">if</span> path.name <span class="kw">not in</span> indexed:
+        index_document(collection, str(path))`
+  },
+  claude: {
+    icon: '🤖', title: 'Claude Desktop', file: 'MCP Client (stdio)',
+    desc: 'MCP 客户端。通过 stdio 连接到 server.py，像调用普通函数一样使用工具。Claude 自己决定什么时候需要查知识库、调用哪个工具、如何整合结果。',
+    code: `<span class="cm"># claude_desktop_config.json</span>
+{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"knowledge"</span>: {
+      <span class="str">"command"</span>: <span class="str">"python3"</span>,
+      <span class="str">"args"</span>: [<span class="str">"/path/to/server.py"</span>]
+    }
+  }
+}
+
+<span class="cm"># 系统提示词 → Claude 知道何时调用工具</span>
+<span class="str">"当用户提问涉及具体知识时，
+优先调用 search_knowledge_base 工具，
+回答时注明信息来源于哪份文档。"</span>`
+  }
+};
+
+/* ─── SIMULATION STEPS ─── */
+const SIM_INDEX = [
+  { nodes: ['n-server'],     conns: [],              msg: '🚀 server.py 启动，调用 _auto_index()' },
+  { nodes: ['n-server','n-docs'],  conns: ['c-sv-idx'],  msg: '📁 扫描 documents/ 目录，发现 操作手册.txt、管理规定.txt' },
+  { nodes: ['n-docs','n-indexer'], conns: ['c-docs-idx'], msg: '📖 indexer._read() 读取原始文本，共约 3200 字' },
+  { nodes: ['n-indexer'],    conns: [],              msg: '✂️  _chunk() 切块：500字一段 / 50字重叠，得到 17 个 chunks' },
+  { nodes: ['n-indexer'],    conns: [],              msg: '🔮 SentenceTransformer 把每段文字向量化为 384 维浮点数' },
+  { nodes: ['n-indexer','n-chroma'], conns: ['c-idx-chroma'], msg: '💾 collection.upsert() 写入 ChromaDB，索引完成！' },
+  { nodes: ['n-chroma'],     conns: [],              msg: '✅ ChromaDB 持久化到 chroma_db/，重启不丢失，等待查询' },
+];
+
+const SIM_QUERY = [
+  { nodes: ['n-claude'],     conns: [],              msg: '🤖 用户提问："连续登录失败会锁定账号吗？"', ret: false },
+  { nodes: ['n-claude','n-server2'], conns: ['c-cl-srv'], msg: '📡 MCP stdio 协议传递 → server.py 收到 search_knowledge_base 调用', ret: false },
+  { nodes: ['n-server2','n-retriever'], conns: ['c-srv-ret'], msg: '⚙️  server.py 调用 retriever.search(query, top_k=3)', ret: false },
+  { nodes: ['n-retriever'],  conns: [],              msg: '🔮 retriever 对查询文本做 embedding 向量化', ret: false },
+  { nodes: ['n-retriever','n-chroma2'], conns: ['c-ret-ch'], msg: '🗄️  ChromaDB 执行余弦最近邻检索，找出最相似的 3 段', ret: false },
+  { nodes: ['n-chroma2'],    conns: [],              msg: '📊 命中！"连续5次登录失败…" 相似度 0.88', ret: false },
+  { nodes: ['n-chroma2'],    conns: [],              msg: '← 结果段落沿原路返回', ret: true },
+  { nodes: ['n-claude'],     conns: [],              msg: '🤖 Claude 收到段落，整合成自然语言回答，并注明来源《操作手册.txt》', ret: true },
+];
+
+let currentPhase = 'index';
+let simTimer = null;
+let simStep = -1;
+let simRunning = false;
+
+function switchPhase(phase) {
+  currentPhase = phase;
+  resetSim();
+  document.querySelectorAll('.phase-tab').forEach((t,i) => {
+    t.classList.toggle('active', (i===0 && phase==='index') || (i===1 && phase==='query'));
+  });
+  document.getElementById('diagram-index').classList.toggle('hidden', phase !== 'index');
+  document.getElementById('diagram-query').classList.toggle('hidden', phase !== 'query');
+  document.getElementById('sim-btn').textContent = phase === 'index' ? '▶ 模拟启动索引' : '▶ 模拟查询';
+}
+
+function getSteps() {
+  return currentPhase === 'index' ? SIM_INDEX : SIM_QUERY;
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.node').forEach(n => {
+    n.classList.remove('active-node','pulse-node');
+  });
+  document.querySelectorAll('.conn,.conn-vert').forEach(c => {
+    c.classList.remove('active-conn');
+    const dot = c.querySelector('.conn-dot');
+    if (dot) { dot.style.animation = 'none'; void dot.offsetWidth; dot.style.animation = ''; }
+  });
+  const ret = document.getElementById('c-return');
+  const retLbl = document.getElementById('return-label');
+  if (ret) ret.classList.remove('active-conn');
+  if (retLbl) retLbl.style.color = 'var(--border2)';
+}
+
+function applyStep(step) {
+  clearHighlights();
+  const s = getSteps()[step];
+  if (!s) return;
+
+  s.nodes.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active-node');
+  });
+  s.conns.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.remove('active-conn');
+      void el.offsetWidth;
+      el.classList.add('active-conn');
+    }
+  });
+  if (s.ret) {
+    const ret = document.getElementById('c-return');
+    const retLbl = document.getElementById('return-label');
+    if (ret) ret.classList.add('active-conn');
+    if (retLbl) retLbl.style.color = 'var(--amber)';
+  }
+
+  document.getElementById('sim-step').textContent = `步骤 ${step + 1} / ${getSteps().length}`;
+  document.getElementById('sim-msg').textContent = s.msg;
+
+  const dots = document.querySelectorAll('.sim-dot');
+  dots.forEach((d, i) => {
+    d.classList.toggle('done', i < step);
+    d.classList.toggle('current', i === step);
+  });
+}
+
+function buildProgressDots() {
+  const container = document.getElementById('sim-progress');
+  container.innerHTML = '';
+  getSteps().forEach(() => {
+    const d = document.createElement('div');
+    d.className = 'sim-dot';
+    container.appendChild(d);
+  });
+}
+
+function runSim() {
+  if (simRunning) return;
+  simRunning = true;
+  const btn = document.getElementById('sim-btn');
+  btn.disabled = true;
+  buildProgressDots();
+
+  if (simStep < 0) simStep = 0;
+  else simStep++;
+
+  function tick() {
+    if (simStep >= getSteps().length) {
+      simRunning = false;
+      btn.disabled = false;
+      document.getElementById('sim-step').textContent = '✅ 流程完成';
+      return;
+    }
+    applyStep(simStep);
+    simStep++;
+    simTimer = setTimeout(tick, 1400);
+  }
+  tick();
+}
+
+function resetSim() {
+  clearTimeout(simTimer);
+  simRunning = false;
+  simStep = -1;
+  clearHighlights();
+  document.getElementById('sim-step').textContent = '点击 ▶ 开始模拟';
+  document.getElementById('sim-msg').textContent = '–';
+  document.getElementById('sim-progress').innerHTML = '';
+  const btn = document.getElementById('sim-btn');
+  if (btn) btn.disabled = false;
+}
+
+/* ─── NODE DETAIL ─── */
+function showDetail(key) {
+  const d = NODES[key];
+  if (!d) return;
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-header">
+      <span class="detail-icon">${d.icon}</span>
+      <span class="detail-title">${d.title}</span>
+    </div>
+    <div class="detail-file">${d.file}</div>
+    <div class="detail-desc">${d.desc}</div>
+    <div class="io-label">关键代码片段</div>
+    <pre class="code-block">${d.code}</pre>
+  `;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+/* ─── SCROLL REVEAL ─── */
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+/* ─── INIT ─── */
+document.getElementById('sim-btn').textContent = '▶ 模拟启动索引';
+</script>
+</body>
+</html>

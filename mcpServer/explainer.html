@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Server 全流程解析</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f6fa; color: #2d3436; line-height: 1.7; }
+
+  .hero { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: #fff; padding: 48px 32px 40px; text-align: center; }
+  .hero h1 { font-size: 2rem; font-weight: 700; margin-bottom: 10px; }
+  .hero p  { font-size: 1.05rem; opacity: .88; }
+
+  nav { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; background: #fff; border-bottom: 1px solid #e0e0e0; padding: 12px 16px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  nav a { font-size: .85rem; padding: 5px 14px; border-radius: 20px; background: #f0f0f0; color: #555; text-decoration: none; transition: background .2s; }
+  nav a:hover { background: #6c5ce7; color: #fff; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  section { margin-bottom: 48px; }
+  h2 { font-size: 1.35rem; font-weight: 700; border-left: 4px solid #6c5ce7; padding-left: 12px; margin-bottom: 20px; color: #2d3436; }
+  h3 { font-size: 1.05rem; font-weight: 600; color: #444; margin: 18px 0 10px; }
+  p  { margin-bottom: 12px; color: #555; }
+
+  /* ── 比喻卡片 ── */
+  .analogy { background: #fff8e1; border: 1px solid #ffd54f; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .analogy .icon { font-size: 1.6rem; margin-right: 8px; }
+
+  /* ── 信息卡片 ── */
+  .card { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 12px rgba(0,0,0,.07); margin-bottom: 16px; }
+  .card-title { font-weight: 700; font-size: 1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: .72rem; background: #6c5ce7; color: #fff; border-radius: 4px; padding: 2px 7px; }
+  .badge.green  { background: #00b894; }
+  .badge.orange { background: #e17055; }
+  .badge.blue   { background: #0984e3; }
+
+  /* ── 流程图 ── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-row { display: flex; align-items: stretch; gap: 0; }
+  .flow-box { flex: 1; background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(0,0,0,.08); font-size: .9rem; position: relative; }
+  .flow-box.highlight { background: #6c5ce7; color: #fff; }
+  .flow-box.highlight .sub { color: #d9d0ff; }
+  .flow-box .title { font-weight: 700; font-size: .95rem; margin-bottom: 4px; }
+  .flow-box .sub   { font-size: .8rem; color: #888; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; padding: 6px 0; color: #aaa; font-size: 1.4rem; }
+  .flow-arrow.right { writing-mode: initial; padding: 0 8px; font-size: 1.2rem; }
+  .flow-label { font-size: .75rem; color: #888; text-align: center; margin-top: 3px; }
+
+  /* ── 步骤时序 ── */
+  .timeline { position: relative; padding-left: 36px; }
+  .timeline::before { content: ''; position: absolute; left: 14px; top: 8px; bottom: 8px; width: 2px; background: #e0e0e0; }
+  .step { position: relative; margin-bottom: 20px; }
+  .step-num { position: absolute; left: -36px; width: 26px; height: 26px; border-radius: 50%; background: #6c5ce7; color: #fff; font-size: .78rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .step-body { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+  .step-body .role { font-size: .75rem; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .step-body strong { color: #2d3436; }
+  .step-body code { background: #f0f0f0; border-radius: 4px; padding: 1px 6px; font-size: .85em; font-family: "JetBrains Mono", "Fira Code", monospace; }
+  .step-body .json { background: #1e1e2e; color: #cdd6f4; border-radius: 8px; padding: 12px 14px; margin-top: 8px; font-size: .8rem; font-family: monospace; white-space: pre; overflow-x: auto; line-height: 1.5; }
+  .step-body .json .key   { color: #89b4fa; }
+  .step-body .json .str   { color: #a6e3a1; }
+  .step-body .json .num   { color: #fab387; }
+
+  /* ── 代码解析 ── */
+  .code-block { background: #1e1e2e; color: #cdd6f4; border-radius: 10px; padding: 18px 20px; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: .82rem; line-height: 1.7; overflow-x: auto; margin: 10px 0 16px; }
+  .code-block .comment { color: #6c7086; }
+  .code-block .keyword { color: #cba6f7; }
+  .code-block .fn      { color: #89b4fa; }
+  .code-block .str     { color: #a6e3a1; }
+  .code-block .deco    { color: #fab387; }
+  .code-block .var     { color: #cdd6f4; }
+
+  .annotation { background: #f8f9ff; border-left: 3px solid #6c5ce7; border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 6px 0 14px; font-size: .88rem; color: #555; }
+
+  /* ── 对话气泡 ── */
+  .chat { display: flex; flex-direction: column; gap: 10px; }
+  .bubble { max-width: 80%; padding: 12px 16px; border-radius: 14px; font-size: .9rem; line-height: 1.6; }
+  .bubble.user   { background: #6c5ce7; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .bubble.claude { background: #fff; color: #333; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  .bubble .label { font-size: .72rem; font-weight: 700; opacity: .7; margin-bottom: 4px; }
+  .bubble.tool-call { background: #fff8e1; border: 1px solid #ffd54f; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .bubble.tool-result { background: #e8f5e9; border: 1px solid #a5d6a7; align-self: flex-start; border-bottom-left-radius: 4px; }
+
+  /* ── 安全对比 ── */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .compare-box { border-radius: 10px; padding: 16px 18px; }
+  .compare-box.allow { background: #e8f5e9; border: 1px solid #a5d6a7; }
+  .compare-box.deny  { background: #ffebee; border: 1px solid #ef9a9a; }
+  .compare-box .head { font-weight: 700; font-size: .9rem; margin-bottom: 8px; }
+  .compare-box.allow .head { color: #2e7d32; }
+  .compare-box.deny  .head { color: #c62828; }
+  .compare-box ul { padding-left: 16px; font-size: .88rem; color: #555; }
+  .compare-box ul li { margin-bottom: 4px; }
+
+  /* ── 总结表格 ── */
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+  th { background: #6c5ce7; color: #fff; padding: 11px 14px; text-align: left; font-size: .88rem; }
+  td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; font-size: .87rem; color: #555; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9f9ff; }
+
+  @media(max-width:600px) {
+    .compare { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>SQLite MCP Server 全流程解析</h1>
+  <p>代码做了什么 · 怎么和 Claude 交互 · 信息怎么流动</p>
+</div>
+
+<nav>
+  <a href="#what-is-mcp">MCP 是什么</a>
+  <a href="#architecture">整体架构</a>
+  <a href="#code-walkthrough">代码解析</a>
+  <a href="#full-flow">完整交互流程</a>
+  <a href="#message-format">消息格式</a>
+  <a href="#security">安全拦截</a>
+  <a href="#summary">一句话总结</a>
+</nav>
+
+<main>
+
+<!-- ─────────────────────────────────────── -->
+<section id="what-is-mcp">
+  <h2>① MCP 是什么——先建立直觉</h2>
+
+  <div class="analogy">
+    <span class="icon">🔌</span>
+    <strong>比喻：MCP 就像 USB 接口标准。</strong><br>
+    你的电脑（Claude）只要有 USB 口，就能接任意厂商的设备（数据库、文件系统、API）。设备按统一规范制造，电脑不需要为每个设备单独写驱动。
+  </div>
+
+  <p>MCP（Model Context Protocol）是 Anthropic 定义的协议，解决一个问题：<strong>大模型怎么安全、统一地调用外部工具和数据？</strong></p>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-top:16px;">
+    <div class="card">
+      <div class="card-title"><span class="badge">Client</span> 客户端</div>
+      <p style="font-size:.87rem">Claude Desktop<br>向服务端发请求、接收结果</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="badge green">Server</span> 服务端</div>
+      <p style="font-size:.87rem">你写的 server.py<br>暴露工具、执行操作</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="badge orange">Transport</span> 传输层</div>
+      <p style="font-size:.87rem">stdio（标准输入输出）<br>两者通过管道通信，不需要 HTTP</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="architecture">
+  <h2>② 整体架构——谁在和谁说话</h2>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-box highlight" style="text-align:center">
+        <div class="title">你（用户）</div>
+        <div class="sub">在 Claude Desktop 输入自然语言</div>
+      </div>
+    </div>
+    <div class="flow-arrow">↕</div>
+    <div class="flow-label">HTTP / WebSocket（Claude Desktop 内部）</div>
+
+    <div class="flow-row" style="gap:12px">
+      <div class="flow-box" style="flex:2; text-align:center">
+        <div class="title">☁️ Claude 大模型（云端）</div>
+        <div class="sub">理解自然语言 · 决定是否调用工具 · 组织最终回答</div>
+      </div>
+      <div style="display:flex; align-items:center; color:#aaa; font-size:1.4rem">↔</div>
+      <div class="flow-box" style="flex:1.2; text-align:center">
+        <div class="title">Claude Desktop</div>
+        <div class="sub">本地 App<br>协议中转站</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">↕</div>
+    <div class="flow-label">stdio（标准输入输出管道）—— JSON-RPC 消息</div>
+
+    <div class="flow-row">
+      <div class="flow-box" style="text-align:center; border: 2px solid #6c5ce7;">
+        <div class="title">🐍 server.py（本地进程）</div>
+        <div class="sub">注册三个工具 · 执行 SQL · 返回结果</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">↕</div>
+    <div class="flow-label">Python sqlite3 库</div>
+
+    <div class="flow-row">
+      <div class="flow-box" style="text-align:center; background:#f8f9ff;">
+        <div class="title">🗄️ demo.db（本地文件）</div>
+        <div class="sub">employees 表 · departments 表</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation" style="margin-top:16px">
+    <strong>关键点：</strong>Claude 大模型在云端，它看不见你的数据库文件。
+    它只能通过"工具调用"请求本地的 server.py 去查询，再把结果返回给它。
+    数据不会直接上传云端，server.py 是数据的守门人。
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="code-walkthrough">
+  <h2>③ 代码逐段解析——每行在做什么</h2>
+
+  <h3>第一部分：初始化</h3>
+  <div class="code-block"><span class="keyword">from</span> mcp.server.fastmcp <span class="keyword">import</span> FastMCP
+
+DB_PATH = os.path.join(os.path.dirname(__file__), <span class="str">"demo.db"</span>)
+mcp = FastMCP(<span class="str">"SQLite 查询助手"</span>)</div>
+  <div class="annotation">
+    <code>FastMCP</code> 是 MCP SDK 提供的高级封装。创建实例时传入服务名称，这个名称会在 Claude Desktop 的工具列表里显示。
+    <code>DB_PATH</code> 固定指向 server.py 同目录下的 demo.db，避免路径问题。
+  </div>
+
+  <h3>第二部分：注册工具（最核心的部分）</h3>
+  <div class="code-block"><span class="deco">@mcp.tool()</span>
+<span class="keyword">def</span> <span class="fn">list_tables</span>() -> str:
+    <span class="str">"""列出数据库中所有的表名。"""</span>
+    ...</div>
+  <div class="annotation">
+    <strong>装饰器 <code>@mcp.tool()</code> 做了三件事：</strong><br>
+    1. 把这个函数登记到 MCP 工具列表<br>
+    2. 从函数签名自动推断参数的 JSON Schema（Claude 需要这个来知道怎么调用）<br>
+    3. 把 docstring 作为工具描述发给 Claude（Claude 靠这段描述决定"要不要调这个工具"）
+  </div>
+
+  <h3>三个工具的职责对比</h3>
+  <table>
+    <tr><th>工具</th><th>入参</th><th>做什么</th><th>对应 SQL</th></tr>
+    <tr><td><code>list_tables</code></td><td>无</td><td>查 sqlite_master 系统表，列出所有用户表</td><td><code>SELECT name FROM sqlite_master WHERE type='table'</code></td></tr>
+    <tr><td><code>describe_table</code></td><td>table_name</td><td>用 PRAGMA 获取字段元信息</td><td><code>PRAGMA table_info(表名)</code></td></tr>
+    <tr><td><code>run_query</code></td><td>sql</td><td>执行任意 SELECT，先校验再执行</td><td>用户提供的 SQL</td></tr>
+  </table>
+
+  <h3 style="margin-top:20px">第三部分：启动入口</h3>
+  <div class="code-block"><span class="keyword">if</span> __name__ == <span class="str">"__main__"</span>:
+    init_db()               <span class="comment"># 数据库不存在就创建示例数据</span>
+    mcp.run(transport=<span class="str">"stdio"</span>)  <span class="comment"># 进入监听循环，通过 stdin/stdout 收发消息</span></div>
+  <div class="annotation">
+    <code>mcp.run(transport="stdio")</code> 启动后程序不会退出，它进入一个事件循环，持续监听 stdin 上的 JSON-RPC 请求，处理后把结果写到 stdout。Claude Desktop 把这个进程的 stdout/stdin 接管，充当"管道"。
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="full-flow">
+  <h2>④ 完整交互流程——以"查薪资最高5人"为例</h2>
+
+  <div class="timeline">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="role">用户 → Claude Desktop</div>
+        <strong>输入自然语言</strong>
+        <p style="margin-top:6px">「帮我查薪资最高的 5 个员工」</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="role">Claude Desktop → 云端大模型</div>
+        <strong>把用户消息 + 工具列表一起发给 Claude</strong>
+        <p style="margin-top:6px; margin-bottom:6px">大模型收到的不只是用户的问题，还附带了"现在有哪些工具可以用"的清单（由 server.py 的工具注册信息生成）：</p>
+        <div class="json">{
+  <span class="key">"tools"</span>: [
+    { <span class="key">"name"</span>: <span class="str">"list_tables"</span>,    <span class="key">"description"</span>: <span class="str">"列出数据库中所有的表名"</span> },
+    { <span class="key">"name"</span>: <span class="str">"describe_table"</span>, <span class="key">"description"</span>: <span class="str">"查看指定表的字段结构"</span>,
+      <span class="key">"inputSchema"</span>: { <span class="key">"table_name"</span>: <span class="str">"string"</span> } },
+    { <span class="key">"name"</span>: <span class="str">"run_query"</span>,     <span class="key">"description"</span>: <span class="str">"执行 SELECT 查询"</span>,
+      <span class="key">"inputSchema"</span>: { <span class="key">"sql"</span>: <span class="str">"string"</span> } }
+  ],
+  <span class="key">"messages"</span>: [{ <span class="key">"role"</span>: <span class="str">"user"</span>, <span class="key">"content"</span>: <span class="str">"帮我查薪资最高的 5 个员工"</span> }]
+}</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="role">云端大模型（思考中）</div>
+        <strong>模型推理：我需要先知道表结构，才能写 SQL</strong>
+        <p style="margin-top:6px">模型内部推断：要查员工，先得知道 employees 表有哪些字段。决定先调 <code>describe_table</code>。</p>
+        <p>模型返回一个"工具调用请求"（不是文字答案）：</p>
+        <div class="json">{
+  <span class="key">"type"</span>: <span class="str">"tool_use"</span>,
+  <span class="key">"name"</span>: <span class="str">"describe_table"</span>,
+  <span class="key">"input"</span>: { <span class="key">"table_name"</span>: <span class="str">"employees"</span> }
+}</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="role">Claude Desktop → server.py（通过 stdio）</div>
+        <strong>转发工具调用请求给本地进程</strong>
+        <p style="margin-top:6px">Claude Desktop 收到大模型的工具调用请求后，通过 stdin 把 JSON-RPC 消息写给 server.py：</p>
+        <div class="json">{
+  <span class="key">"jsonrpc"</span>: <span class="str">"2.0"</span>,
+  <span class="key">"method"</span>: <span class="str">"tools/call"</span>,
+  <span class="key">"params"</span>: {
+    <span class="key">"name"</span>: <span class="str">"describe_table"</span>,
+    <span class="key">"arguments"</span>: { <span class="key">"table_name"</span>: <span class="str">"employees"</span> }
+  }
+}</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="role">server.py 执行</div>
+        <strong>describe_table("employees") 被调用，查询 SQLite</strong>
+        <p style="margin-top:6px">server.py 执行 <code>PRAGMA table_info(employees)</code>，把结果格式化成字符串，写回 stdout：</p>
+        <div class="json">{
+  <span class="key">"result"</span>: {
+    <span class="key">"content"</span>: [{
+      <span class="key">"type"</span>: <span class="str">"text"</span>,
+      <span class="key">"text"</span>: <span class="str">"字段名 | 类型 | 主键\nid | INTEGER | 是\nname | TEXT | 否\nsalary | REAL | 否\n..."</span>
+    }]
+  }
+}</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <div class="role">Claude Desktop → 云端大模型（第二轮）</div>
+        <strong>把工具结果追加进对话，再次发给模型</strong>
+        <p style="margin-top:6px">现在对话历史变成了：用户提问 → 模型发出工具调用 → 工具返回结果。大模型拿到表结构后，继续推理并决定调用 <code>run_query</code>：</p>
+        <div class="json">{
+  <span class="key">"type"</span>: <span class="str">"tool_use"</span>,
+  <span class="key">"name"</span>: <span class="str">"run_query"</span>,
+  <span class="key">"input"</span>: {
+    <span class="key">"sql"</span>: <span class="str">"SELECT name, department, salary FROM employees ORDER BY salary DESC LIMIT 5"</span>
+  }
+}</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <div class="role">server.py 执行</div>
+        <strong>run_query 检查语句 → 执行 → 返回结果</strong>
+        <p style="margin-top:6px">先验证是否以 SELECT 开头（通过），然后查询 SQLite 返回 5 行数据。</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <div class="role">云端大模型 → 用户</div>
+        <strong>模型把数据整理成自然语言回复</strong>
+        <p style="margin-top:6px">拿到查询结果后，模型不再发出工具调用，而是直接生成最终回答，用自然语言描述薪资排名。</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="message-format">
+  <h2>⑤ stdio 消息格式——管道里流动的是什么</h2>
+
+  <div class="annotation">
+    Claude Desktop 和 server.py 之间通过操作系统的"管道"通信。本质上就是两个进程共享 stdin/stdout，数据格式是 <strong>JSON-RPC 2.0</strong>，每条消息是一行 JSON。
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+    <div class="card">
+      <div class="card-title"><span class="badge blue">→ 请求</span> Desktop 发给 server.py</div>
+      <div class="code-block" style="font-size:.78rem">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "run_query",
+    "arguments": {
+      "sql": "SELECT ..."
+    }
+  }
+}</div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="badge green">← 响应</span> server.py 返回给 Desktop</div>
+      <div class="code-block" style="font-size:.78rem">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [{
+      "type": "text",
+      "text": "name | salary\n..."
+    }],
+    "isError": false
+  }
+}</div>
+    </div>
+  </div>
+
+  <p style="margin-top:12px">启动时还有握手阶段：Desktop 先发 <code>initialize</code> 请求，server.py 返回自己支持的能力和工具列表。之后才开始正常的工具调用。</p>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="security">
+  <h2>⑥ 安全拦截——为什么删库命令不会执行</h2>
+
+  <div class="compare">
+    <div class="compare-box allow">
+      <div class="head">✅ 允许</div>
+      <ul>
+        <li>SELECT * FROM employees</li>
+        <li>SELECT name FROM departments</li>
+        <li>SELECT ... JOIN ... WHERE ...</li>
+      </ul>
+    </div>
+    <div class="compare-box deny">
+      <div class="head">🚫 拒绝</div>
+      <ul>
+        <li>DELETE FROM employees</li>
+        <li>DROP TABLE employees</li>
+        <li>INSERT INTO ...</li>
+        <li>UPDATE employees SET ...</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="annotation" style="margin-top:16px">
+    拦截逻辑在 server.py 里，发生在数据库执行之前：
+    <br><code>if not stripped.upper().startswith("SELECT"): return "拒绝执行..."</code>
+    <br><br>
+    即使 Claude 大模型"想"执行删除操作，server.py 在本地就挡掉了，不会触达 SQLite。
+    大模型只能得到一条错误文本，它会把这个拒绝原因转述给用户。
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="summary">
+  <h2>⑦ 一句话总结每个角色</h2>
+
+  <table>
+    <tr><th>角色</th><th>位置</th><th>职责</th></tr>
+    <tr>
+      <td><strong>你（用户）</strong></td>
+      <td>人</td>
+      <td>用自然语言提问，看最终回答</td>
+    </tr>
+    <tr>
+      <td><strong>Claude 大模型</strong></td>
+      <td>云端</td>
+      <td>理解意图、推理要调哪个工具、生成 SQL、组织最终回答</td>
+    </tr>
+    <tr>
+      <td><strong>Claude Desktop</strong></td>
+      <td>本地 App</td>
+      <td>中转站：把大模型的工具调用请求转给本地进程，把结果转回给大模型</td>
+    </tr>
+    <tr>
+      <td><strong>server.py</strong></td>
+      <td>本地进程</td>
+      <td>守门人：注册工具、安全校验、执行 SQL、格式化结果</td>
+    </tr>
+    <tr>
+      <td><strong>demo.db</strong></td>
+      <td>本地文件</td>
+      <td>数据源：存储真实数据，只接受 server.py 的访问</td>
+    </tr>
+    <tr>
+      <td><strong>stdio 管道</strong></td>
+      <td>操作系统</td>
+      <td>传输层：Desktop 和 server.py 之间的 JSON-RPC 通信通道</td>
+    </tr>
+  </table>
+
+  <div class="analogy" style="margin-top:24px">
+    <span class="icon">💡</span>
+    <strong>最简理解：</strong>你跟 Claude 说话 → Claude 大脑决定要查数据库 → 发出"工具调用"请求 →
+    Claude Desktop 把请求转给你本地的 server.py → server.py 查 SQLite → 结果原路返回 →
+    Claude 大脑拿到数据后用自然语言告诉你答案。<br>
+    <strong>整个过程你的数据库数据不会上传云端。</strong>
+  </div>
+</section>
+
+</main>
+</body>
+</html>
