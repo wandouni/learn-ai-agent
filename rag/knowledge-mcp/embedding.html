@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>向量化是什么？图解 Embedding</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090e;
+  --bg2: #11111a;
+  --bg3: #181825;
+  --border: #1e1e2e;
+  --border2: #2a2a40;
+  --purple: #a78bfa;
+  --pink: #f472b6;
+  --cyan: #22d3ee;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --text: #cbd5e1;
+  --text-dim: #64748b;
+  --text-bright: #f1f5f9;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+  --display: 'Outfit', sans-serif;
+  --r: 14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;overflow-x:hidden}
+
+/* ─ GRAIN ─ */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  background-size:256px;opacity:.6}
+
+.wrap{max-width:960px;margin:0 auto;padding:0 24px}
+
+/* ─ HERO ─ */
+.hero{padding:80px 0 56px;text-align:center;position:relative}
+.hero::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:600px;height:300px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(167,139,250,.12) 0%,transparent 70%);
+  pointer-events:none}
+.hero-tag{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  color:var(--purple);background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);
+  border-radius:99px;padding:5px 14px;display:inline-block;margin-bottom:24px}
+.hero h1{font-family:var(--display);font-size:clamp(2.2rem,6vw,3.8rem);
+  font-weight:900;color:var(--text-bright);line-height:1.1;margin-bottom:16px}
+.hero h1 em{font-style:normal;
+  background:linear-gradient(135deg,var(--purple),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:16px;color:var(--text-dim);max-width:500px;margin:0 auto}
+
+/* ─ SECTION ─ */
+.sec{padding:64px 0}
+.sec-tag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  color:var(--text-dim);text-transform:uppercase;margin-bottom:6px}
+.sec-title{font-family:var(--display);font-size:clamp(1.5rem,3vw,2.1rem);
+  font-weight:800;color:var(--text-bright);margin-bottom:10px}
+.sec-sub{font-size:15px;color:var(--text-dim);max-width:560px;margin-bottom:36px}
+
+/* ─ CARD ─ */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:28px}
+.card+.card{margin-top:16px}
+
+/* ─ STEP 1: TEXT → NUMBERS ─ */
+.word-transform{
+  display:flex;flex-direction:column;align-items:center;gap:24px;
+  padding:40px 24px;
+  background:linear-gradient(135deg,rgba(167,139,250,.06),rgba(244,114,182,.04));
+  border:1px solid rgba(167,139,250,.2);border-radius:var(--r);
+}
+.word-pills{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.word-pill{
+  font-family:var(--sans);font-size:15px;font-weight:600;
+  padding:10px 22px;border-radius:99px;cursor:pointer;
+  background:var(--bg3);border:1px solid var(--border2);color:var(--text);
+  transition:all .2s;user-select:none
+}
+.word-pill:hover{border-color:var(--purple);color:var(--purple)}
+.word-pill.active{background:rgba(167,139,250,.15);border-color:var(--purple);color:var(--purple)}
+.arrow-down{font-size:1.5rem;color:var(--text-dim);animation:bounce 1.5s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+.vector-display{width:100%;max-width:680px}
+.vec-label{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:10px;
+  text-align:center;letter-spacing:.08em}
+.bar-grid{display:grid;grid-template-columns:repeat(32,1fr);gap:2px;height:60px}
+.bar{border-radius:2px;transition:height .4s ease,background .4s ease;align-self:end}
+.vec-note{font-size:12px;color:var(--text-dim);text-align:center;margin-top:10px}
+.vec-sample{
+  font-family:var(--mono);font-size:11px;color:var(--cyan);
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;margin-top:12px;line-height:2;word-break:break-all;
+  text-align:center;
+}
+
+/* ─ STEP 2: SEMANTIC SPACE ─ */
+.canvas-wrap{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:20px;position:relative
+}
+#semantic-canvas{width:100%;border-radius:8px;cursor:crosshair}
+.canvas-legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.canvas-tip{font-family:var(--mono);font-size:11px;color:var(--text-dim);
+  text-align:center;margin-top:8px}
+
+/* ─ STEP 3: COSINE ─ */
+.cosine-wrap{
+  display:grid;grid-template-columns:1fr 1fr;gap:20px;
+  align-items:start
+}
+@media(max-width:600px){.cosine-wrap{grid-template-columns:1fr}}
+.cosine-demo{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:24px;
+}
+.cos-canvas-wrap{display:flex;justify-content:center;margin-bottom:16px}
+#cos-canvas{border-radius:8px}
+.cos-info{text-align:center}
+.cos-score{font-family:var(--display);font-size:2.5rem;font-weight:900;
+  margin-bottom:4px;transition:color .3s}
+.cos-label{font-size:13px;color:var(--text-dim)}
+.cos-slider-wrap{margin-top:16px}
+.cos-slider-label{font-size:12px;color:var(--text-dim);margin-bottom:6px}
+input[type=range]{
+  width:100%;accent-color:var(--purple);cursor:pointer;
+  height:4px;border-radius:2px;
+}
+.cos-explain{display:flex;flex-direction:column;gap:12px}
+.cos-row{
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:16px 18px;
+}
+.cos-row-score{
+  font-family:var(--display);font-size:1.4rem;font-weight:800;margin-bottom:4px
+}
+.cos-row-q{font-size:13px;font-weight:600;color:var(--text-bright);margin-bottom:2px}
+.cos-row-d{font-size:12px;color:var(--text-dim)}
+
+/* ─ STEP 4: CODE CHAIN ─ */
+.chain{display:flex;flex-direction:column;gap:0}
+.chain-step{
+  display:flex;gap:20px;position:relative;padding-bottom:24px
+}
+.chain-step:last-child{padding-bottom:0}
+.chain-left{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:44px}
+.chain-num{
+  width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:1rem;font-weight:800;flex-shrink:0;
+  border:2px solid;
+}
+.chain-line{flex:1;width:2px;background:var(--border2);margin-top:6px}
+.chain-step:last-child .chain-line{display:none}
+.chain-body{flex:1;padding-top:6px;padding-bottom:4px}
+.chain-title{font-family:var(--display);font-size:1rem;font-weight:700;color:var(--text-bright);margin-bottom:4px}
+.chain-desc{font-size:13px;color:var(--text-dim);margin-bottom:10px;line-height:1.7}
+.code-snip{
+  background:#0d1117;border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;font-family:var(--mono);font-size:12px;
+  line-height:1.9;overflow-x:auto;
+}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}
+.cm{color:#8b949e;font-style:italic}.nm{color:#79c0ff}
+
+/* ─ TOOL BOX ─ */
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.tool-box{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:22px;transition:border-color .2s,transform .2s
+}
+.tool-box:hover{border-color:var(--border2);transform:translateY(-3px)}
+.tool-icon{font-size:1.8rem;margin-bottom:12px}
+.tool-name{font-family:var(--mono);font-size:13px;color:var(--purple);margin-bottom:6px}
+.tool-role{font-size:13px;color:var(--text-dim);line-height:1.7}
+
+/* ─ REVEAL ─ */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .55s ease,transform .55s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ─ HIGHLIGHT TAG ─ */
+.ht{display:inline-block;font-family:var(--mono);font-size:10px;
+  padding:2px 8px;border-radius:4px;margin:0 2px;vertical-align:middle}
+.ht-p{background:rgba(167,139,250,.15);color:var(--purple);border:1px solid rgba(167,139,250,.25)}
+.ht-c{background:rgba(34,211,238,.12);color:var(--cyan);border:1px solid rgba(34,211,238,.2)}
+.ht-g{background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.ht-a{background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.2)}
+
+.divider{height:1px;background:var(--border);margin:4px 0 56px}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="wrap">
+<div class="hero">
+  <div class="hero-tag">Embedding 图解 · 通俗版</div>
+  <h1>文字怎么变成<em>数字</em>？</h1>
+  <p>向量化（Embedding）是知识库能"理解"意思的核心，一共就干了一件事：把文字翻译成坐标</p>
+</div>
+
+<!-- ═══ SEC 1 ═══ -->
+<div class="sec reveal">
+  <div class="sec-tag">// 第一步 · 直觉</div>
+  <div class="sec-title">文字 → 384 个数字</div>
+  <div class="sec-sub">点击下面任意词语，看它被翻译成什么样的数字"指纹"</div>
+
+  <div class="word-transform">
+    <div class="word-pills" id="pills">
+      <div class="word-pill active" data-word="登录失败">登录失败</div>
+      <div class="word-pill" data-word="账号锁定">账号锁定</div>
+      <div class="word-pill" data-word="密码错误">密码错误</div>
+      <div class="word-pill" data-word="文件上传">文件上传</div>
+      <div class="word-pill" data-word="权限管理">权限管理</div>
+      <div class="word-pill" data-word="login failed">login failed</div>
+    </div>
+    <div class="arrow-down">↓</div>
+    <div class="vector-display">
+      <div class="vec-label">前 32 维可视化（共 384 维）</div>
+      <div class="bar-grid" id="bar-grid"></div>
+      <div class="vec-sample" id="vec-sample">[ 0.12, -0.34, 0.87, 0.05, -0.61, ... ]</div>
+      <div class="vec-note" id="vec-note">每个数字代表这段文字在一个语义维度上的强度</div>
+    </div>
+  </div>
+
+  <div style="margin-top:28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+    <div class="card" style="border-color:rgba(167,139,250,.25)">
+      <div style="font-size:1.8rem;margin-bottom:10px">🔢</div>
+      <div style="font-family:var(--display);font-size:.95rem;font-weight:700;color:var(--text-bright);margin-bottom:6px">384 维向量</div>
+      <div style="font-size:13px;color:var(--text-dim)">每段文字都变成一个 384 维空间里的坐标点，语义相近的词坐标也相近</div>
+    </div>
+    <div class="card" style="border-color:rgba(34,211,238,.2)">
+      <div style="font-size:1.8rem;margin-bottom:10px">🌍</div>
+      <div style="font-family:var(--display);font-size:.95rem;font-weight:700;color:var(--text-bright);margin-bottom:6px">多语言</div>
+      <div style="font-size:13px;color:var(--text-dim)">中文"登录失败"和英文"login failed"落在几乎相同的坐标附近</div>
+    </div>
+    <div class="card" style="border-color:rgba(74,222,128,.2)">
+      <div style="font-size:1.8rem;margin-bottom:10px">🧠</div>
+      <div style="font-family:var(--display);font-size:.95rem;font-weight:700;color:var(--text-bright);margin-bottom:6px">语义而非关键词</div>
+      <div style="font-size:13px;color:var(--text-dim)">问"被锁了怎么办"能找到"连续失败5次锁定"——没有重复词也能匹配</div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══ SEC 2 ═══ -->
+<div class="sec reveal">
+  <div class="sec-tag">// 第二步 · 视觉化</div>
+  <div class="sec-title">语义空间长什么样</div>
+  <div class="sec-sub">384维太难想象，压缩到2D看：语义相近的词真的挤在一起<span style="color:var(--text-dim)">（悬停看词语）</span></div>
+
+  <div class="canvas-wrap">
+    <canvas id="semantic-canvas" height="380"></canvas>
+    <div class="canvas-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>登录 / 认证</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div>文档 / 文件</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>权限 / 管理</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f472b6"></div>跨语言等价词</div>
+    </div>
+    <div class="canvas-tip">← 注意：中文"登录失败"和英文"login failed"落在同一区域（粉色圆圈标注）</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══ SEC 3 ═══ -->
+<div class="sec reveal">
+  <div class="sec-tag">// 第三步 · 相似度</div>
+  <div class="sec-title">怎么判断"够不够相似"</div>
+  <div class="sec-sub">用两个向量之间的夹角——角度越小，语义越接近，这叫余弦相似度</div>
+
+  <div class="cosine-wrap">
+    <div class="cosine-demo">
+      <div class="cos-canvas-wrap"><canvas id="cos-canvas" width="240" height="200"></canvas></div>
+      <div class="cos-info">
+        <div class="cos-score" id="cos-score">0.88</div>
+        <div class="cos-label">余弦相似度（1=完全一样，0=毫无关联）</div>
+      </div>
+      <div class="cos-slider-wrap">
+        <div class="cos-slider-label">拖动改变夹角，看相似度如何变化</div>
+        <input type="range" min="5" max="90" value="20" id="cos-slider">
+      </div>
+    </div>
+    <div class="cos-explain">
+      <div class="cos-row" style="border-color:rgba(74,222,128,.3)">
+        <div class="cos-row-score" style="color:var(--green)">0.88</div>
+        <div class="cos-row-q">问："连续失败多少次锁定？"</div>
+        <div class="cos-row-d">命中段落："连续5次登录失败后账号将被锁定" → 高度相关 ✅</div>
+      </div>
+      <div class="cos-row" style="border-color:rgba(251,191,36,.3)">
+        <div class="cos-row-score" style="color:var(--amber)">0.41</div>
+        <div class="cos-row-q">问："连续失败多少次锁定？"</div>
+        <div class="cos-row-d">段落："文件大小限制50MB" → 不相关，被过滤 ❌</div>
+      </div>
+      <div class="cos-row" style="border-color:rgba(167,139,250,.3)">
+        <div class="cos-row-score" style="color:var(--purple)">top_k=3</div>
+        <div class="cos-row-q">只返回相似度最高的 3 个段落</div>
+        <div class="cos-row-d">retriever.py 把 top_k 钳制在 [1, 5]，防止返回过多噪声</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══ SEC 4 ═══ -->
+<div class="sec reveal">
+  <div class="sec-tag">// 第四步 · 代码调用链</div>
+  <div class="sec-title">谁在什么时候调用了向量化</div>
+  <div class="sec-sub">向量化发生了两次：写入时（存文档）和读取时（查询），都是 ChromaDB 自动触发的</div>
+
+  <div class="chain">
+
+    <div class="chain-step">
+      <div class="chain-left">
+        <div class="chain-num" style="border-color:var(--purple);color:var(--purple);background:rgba(167,139,250,.1)">1</div>
+        <div class="chain-line"></div>
+      </div>
+      <div class="chain-body">
+        <div class="chain-title">server.py — 创建 collection，绑定 embedding 函数</div>
+        <div class="chain-desc">collection 是 ChromaDB 里存数据的容器，创建时把向量化工具"绑"进去，之后读写都自动用它</div>
+        <div class="code-snip"><span class="cm"># indexer.py · get_or_create_collection()</span>
+<span class="kw">from</span> chromadb.utils.embedding_functions <span class="kw">import</span> SentenceTransformerEmbeddingFunction
+
+ef = SentenceTransformerEmbeddingFunction(
+    model_name=<span class="st">"paraphrase-multilingual-MiniLM-L12-v2"</span>  <span class="cm"># ← 支持中文的多语言模型</span>
+)
+collection = client.get_or_create_collection(
+    name=<span class="st">"knowledge_base"</span>,
+    embedding_function=ef,              <span class="cm"># ← 向量化工具绑在这里</span>
+    metadata={<span class="st">"hnsw:space"</span>: <span class="st">"cosine"</span>},  <span class="cm"># ← 用余弦距离</span>
+)</div>
+      </div>
+    </div>
+
+    <div class="chain-step">
+      <div class="chain-left">
+        <div class="chain-num" style="border-color:var(--cyan);color:var(--cyan);background:rgba(34,211,238,.1)">2</div>
+        <div class="chain-line"></div>
+      </div>
+      <div class="chain-body">
+        <div class="chain-title">写入时：indexer.py 调用 upsert，自动向量化</div>
+        <div class="chain-desc">你只传原文，ChromaDB 内部调用 <span class="ht ht-p">ef(chunks)</span> 得到向量，把<strong>原文 + 向量 + metadata</strong> 一起存进去</div>
+        <div class="code-snip"><span class="cm"># indexer.py · index_document()</span>
+chunks = _chunk(text)          <span class="cm"># 切成 500 字的段落列表</span>
+
+collection.upsert(
+    ids=[f<span class="st">"{filename}__{i}"</span> <span class="kw">for</span> i <span class="kw">in</span> range(len(chunks))],
+    documents=chunks,          <span class="cm"># ← 只传文字，向量化在内部自动发生</span>
+    metadatas=[{<span class="st">"source"</span>: filename, <span class="st">"chunk_index"</span>: i}
+               <span class="kw">for</span> i <span class="kw">in</span> range(len(chunks))],
+)
+<span class="cm"># upsert 内部干了什么：
+# 1. ef(chunks) → [[0.12, -0.34, ...], [0.87, 0.05, ...], ...]
+# 2. 把向量 + 原文 + metadata 存进 ChromaDB 的 HNSW 索引</span></div>
+      </div>
+    </div>
+
+    <div class="chain-step">
+      <div class="chain-left">
+        <div class="chain-num" style="border-color:var(--green);color:var(--green);background:rgba(74,222,128,.1)">3</div>
+        <div class="chain-line"></div>
+      </div>
+      <div class="chain-body">
+        <div class="chain-title">查询时：retriever.py 调用 query，自动向量化 + 检索</div>
+        <div class="chain-desc">查询文本也先向量化，然后在 HNSW 索引里找"坐标最近"的段落，返回原文</div>
+        <div class="code-snip"><span class="cm"># retriever.py · search()</span>
+results = collection.query(
+    query_texts=[query],       <span class="cm"># ← 传查询文字，自动向量化</span>
+    n_results=top_k,
+    include=[<span class="st">"documents"</span>, <span class="st">"metadatas"</span>, <span class="st">"distances"</span>],
+)
+<span class="cm"># query 内部干了什么：
+# 1. ef([query]) → [[0.09, -0.31, 0.84, ...]]   向量化查询
+# 2. HNSW 找出余弦距离最小的 top_k 个向量
+# 3. 取出对应的原文段落 + 距离分数返回</span>
+
+similarity = <span class="nm">1.0</span> - dist  <span class="cm"># cosine distance → similarity（越大越相似）</span></div>
+      </div>
+    </div>
+
+    <div class="chain-step">
+      <div class="chain-left">
+        <div class="chain-num" style="border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,.1)">4</div>
+      </div>
+      <div class="chain-body">
+        <div class="chain-title">SentenceTransformer 模型本身做了什么</div>
+        <div class="chain-desc">真正的向量化在这里发生，<span class="ht ht-c">paraphrase-multilingual-MiniLM-L12-v2</span> 是一个 1.17 亿参数的神经网络，输入文字，输出 384 维向量</div>
+        <div class="code-snip"><span class="cm"># 这是 SentenceTransformerEmbeddingFunction 内部干的事（你不需要写）</span>
+<span class="kw">from</span> sentence_transformers <span class="kw">import</span> SentenceTransformer
+
+model = SentenceTransformer(<span class="st">"paraphrase-multilingual-MiniLM-L12-v2"</span>)
+<span class="cm"># 模型首次使用时从 HuggingFace 下载（~270MB），之后缓存本地</span>
+
+vectors = model.encode([<span class="st">"连续登录失败"</span>, <span class="st">"login failed"</span>])
+<span class="cm"># → array([[0.12, -0.34, 0.87, ...],   shape: (2, 384)
+#           [0.11, -0.33, 0.86, ...]])  ← 两个词向量几乎一样！</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══ SEC 5 ═══ -->
+<div class="sec reveal">
+  <div class="sec-tag">// 工具清单</div>
+  <div class="sec-title">用了哪些库，各自干什么</div>
+  <div style="margin-bottom:28px"></div>
+  <div class="tool-grid">
+    <div class="tool-box">
+      <div class="tool-icon">📦</div>
+      <div class="tool-name">sentence-transformers</div>
+      <div class="tool-role">加载神经网络模型，把文本编码成向量。
+        <br><br>我们用的模型：<span class="ht ht-p">paraphrase-multilingual-MiniLM-L12-v2</span><br>
+        12层 Transformer，输出 384 维，支持 50+ 语言，包括中文。</div>
+    </div>
+    <div class="tool-box">
+      <div class="tool-icon">🗄️</div>
+      <div class="tool-name">chromadb</div>
+      <div class="tool-role">本地向量数据库，负责存储和检索。
+        <br><br>提供 <span class="ht ht-c">SentenceTransformerEmbeddingFunction</span> 包装器，把 sentence-transformers 和 collection 绑在一起，让 upsert/query 时向量化自动发生。</div>
+    </div>
+    <div class="tool-box">
+      <div class="tool-icon">🔍</div>
+      <div class="tool-name">HNSW 索引算法</div>
+      <div class="tool-role">ChromaDB 底层用的检索算法（Hierarchical Navigable Small World）。
+        <br><br>在百万级向量里找最近邻，复杂度 O(log n)。我们配置了 <span class="ht ht-g">cosine</span> 距离度量。</div>
+    </div>
+    <div class="tool-box">
+      <div class="tool-icon">🤗</div>
+      <div class="tool-name">HuggingFace Hub</div>
+      <div class="tool-role">模型下载来源。首次使用时 sentence-transformers 自动从这里拉取模型权重文件（约 270MB），之后缓存在本地 <span class="ht ht-a">~/.cache/</span>，不需要联网。</div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div style="text-align:center;padding:32px 0 56px;font-family:var(--mono);font-size:11px;color:var(--text-dim);border-top:1px solid var(--border)">
+  paraphrase-multilingual-MiniLM-L12-v2 · 384-dim · cosine similarity · ChromaDB HNSW
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+/* ─── WORD EMBEDDINGS (pseudo-realistic, seeded per word) ─── */
+function seededRand(seed) {
+  let s = seed;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+}
+
+const WORD_SEEDS = {
+  '登录失败': 42, '账号锁定': 48, '密码错误': 51,
+  '文件上传': 120, '权限管理': 200, 'login failed': 44
+};
+
+function getVector(word, dims=32) {
+  const seed = WORD_SEEDS[word] || 99;
+  const rng = seededRand(seed);
+  const vals = Array.from({length: dims}, () => (rng() * 2 - 1));
+  // Normalize
+  const mag = Math.sqrt(vals.reduce((s,v)=>s+v*v,0));
+  return vals.map(v => v/mag);
+}
+
+// Blend login words toward each other slightly
+function blendVectors(w1, w2, t, dims=32) {
+  const v1 = getVector(w1, dims), v2 = getVector(w2, dims);
+  return v1.map((v,i) => v*(1-t) + v2[i]*t);
+}
+
+const BARS = 32;
+const barGrid = document.getElementById('bar-grid');
+for(let i=0;i<BARS;i++){
+  const b = document.createElement('div');
+  b.className='bar'; b.style.height='40%';
+  b.style.background='var(--purple)';
+  barGrid.appendChild(b);
+}
+
+const bars = barGrid.querySelectorAll('.bar');
+
+function renderVector(word) {
+  let vec;
+  if(word === 'login failed') {
+    vec = blendVectors('登录失败', 'login failed', 0.15);
+  } else {
+    vec = getVector(word, BARS);
+  }
+  const max = Math.max(...vec.map(Math.abs));
+  bars.forEach((b, i) => {
+    const v = vec[i];
+    const pct = Math.abs(v) / max;
+    b.style.height = `${Math.max(4, pct * 56)}px`;
+    b.style.background = v > 0 ? 'var(--purple)' : 'var(--pink)';
+    b.style.opacity = 0.4 + pct * 0.6;
+  });
+
+  const sample = vec.slice(0,6).map(v=>v.toFixed(2)).join(', ');
+  document.getElementById('vec-sample').textContent = `[ ${sample}, … ]  (384 个数字)`;
+
+  if(word === 'login failed' || word === '登录失败') {
+    document.getElementById('vec-note').textContent = '💡 "登录失败" 和 "login failed" 的图形几乎相同 —— 多语言理解！';
+  } else {
+    document.getElementById('vec-note').textContent = '每个数字代表这段文字在一个语义维度上的强度（正/负均有意义）';
+  }
+}
+
+document.querySelectorAll('.word-pill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('.word-pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    renderVector(p.dataset.word);
+  });
+});
+renderVector('登录失败');
+
+/* ─── SEMANTIC SPACE CANVAS ─── */
+const semanticCanvas = document.getElementById('semantic-canvas');
+const sctx = semanticCanvas.getContext('2d');
+
+const POINTS = [
+  // Login/Auth cluster (purple)
+  {label:'登录失败', x:.22, y:.28, color:'#a78bfa', r:7},
+  {label:'账号锁定', x:.18, y:.38, color:'#a78bfa', r:7},
+  {label:'密码错误', x:.28, y:.22, color:'#a78bfa', r:7},
+  {label:'连续失败', x:.15, y:.30, color:'#a78bfa', r:7},
+  // Cross-lingual (pink)
+  {label:'login failed', x:.24, y:.32, color:'#f472b6', r:8},
+  {label:'account locked', x:.19, y:.42, color:'#f472b6', r:7},
+  // Document cluster (cyan)
+  {label:'文件上传', x:.72, y:.25, color:'#22d3ee', r:7},
+  {label:'文档管理', x:.78, y:.32, color:'#22d3ee', r:7},
+  {label:'PDF格式', x:.70, y:.38, color:'#22d3ee', r:7},
+  {label:'批量下载', x:.82, y:.22, color:'#22d3ee', r:7},
+  // Permission cluster (green)
+  {label:'权限管理', x:.48, y:.72, color:'#4ade80', r:7},
+  {label:'管理员', x:.55, y:.78, color:'#4ade80', r:7},
+  {label:'访问控制', x:.42, y:.80, color:'#4ade80', r:7},
+  {label:'只读权限', x:.52, y:.68, color:'#4ade80', r:7},
+];
+
+let hovered = null;
+
+function drawSemantic() {
+  const W = semanticCanvas.offsetWidth;
+  semanticCanvas.width = W;
+  semanticCanvas.height = 380;
+  const H = 380;
+  sctx.clearRect(0,0,W,H);
+
+  // Grid
+  sctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  sctx.lineWidth = 1;
+  for(let i=0;i<=10;i++){
+    sctx.beginPath();sctx.moveTo(i*W/10,0);sctx.lineTo(i*W/10,H);sctx.stroke();
+    sctx.beginPath();sctx.moveTo(0,i*H/10);sctx.lineTo(W,i*H/10);sctx.stroke();
+  }
+
+  // Cross-lingual circle
+  const loginEn = POINTS.find(p=>p.label==='login failed');
+  const loginZh = POINTS.find(p=>p.label==='登录失败');
+  const cx = (loginEn.x*W + loginZh.x*W)/2;
+  const cy = (loginEn.y*H + loginZh.y*H)/2;
+  sctx.beginPath();
+  sctx.arc(cx,cy,54,0,Math.PI*2);
+  sctx.strokeStyle='rgba(244,114,182,0.35)';
+  sctx.lineWidth=1.5;
+  sctx.setLineDash([4,4]);
+  sctx.stroke();
+  sctx.setLineDash([]);
+  sctx.fillStyle='rgba(244,114,182,0.06)';
+  sctx.fill();
+
+  // Lines within clusters
+  const clusters = [
+    POINTS.filter(p=>p.color==='#a78bfa'),
+    POINTS.filter(p=>p.color==='#22d3ee'),
+    POINTS.filter(p=>p.color==='#4ade80'),
+  ];
+  clusters.forEach(cl => {
+    for(let i=0;i<cl.length;i++){
+      for(let j=i+1;j<cl.length;j++){
+        sctx.beginPath();
+        sctx.moveTo(cl[i].x*W,cl[i].y*H);
+        sctx.lineTo(cl[j].x*W,cl[j].y*H);
+        sctx.strokeStyle=cl[i].color+'33';
+        sctx.lineWidth=1;
+        sctx.stroke();
+      }
+    }
+  });
+
+  // Points
+  POINTS.forEach(p => {
+    const px=p.x*W, py=p.y*H;
+    const isHov = hovered===p;
+
+    // Glow
+    const grd=sctx.createRadialGradient(px,py,0,px,py,isHov?24:16);
+    grd.addColorStop(0,p.color+'55');grd.addColorStop(1,'transparent');
+    sctx.beginPath();sctx.arc(px,py,isHov?24:16,0,Math.PI*2);
+    sctx.fillStyle=grd;sctx.fill();
+
+    // Dot
+    sctx.beginPath();sctx.arc(px,py,isHov?p.r+3:p.r,0,Math.PI*2);
+    sctx.fillStyle=p.color;sctx.fill();
+    if(isHov){sctx.strokeStyle='#fff';sctx.lineWidth=2;sctx.stroke();}
+
+    // Label (always show if hovered, else hide overlapping)
+    if(isHov || p.r>=8){
+      sctx.font=`${isHov?13:11}px Noto Sans SC, sans-serif`;
+      sctx.fillStyle=isHov?'#fff':p.color+'cc';
+      sctx.textAlign=px>W*0.6?'right':'left';
+      sctx.fillText(p.label,px+(px>W*0.6?-12:12),py-12);
+    }
+  });
+
+  // Axis labels
+  sctx.font='10px JetBrains Mono';
+  sctx.fillStyle='rgba(255,255,255,0.2)';
+  sctx.textAlign='center';
+  sctx.fillText('← 语义维度 1 →',W/2,H-8);
+  sctx.save();sctx.translate(12,H/2);sctx.rotate(-Math.PI/2);
+  sctx.fillText('← 语义维度 2 →',0,0);sctx.restore();
+}
+
+semanticCanvas.addEventListener('mousemove', e => {
+  const rect=semanticCanvas.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(semanticCanvas.width/rect.width);
+  const my=(e.clientY-rect.top)*(semanticCanvas.height/rect.height);
+  let prev=hovered;
+  hovered=null;
+  POINTS.forEach(p=>{
+    const dx=p.x*semanticCanvas.width-mx, dy=p.y*semanticCanvas.height-my;
+    if(Math.sqrt(dx*dx+dy*dy)<20) hovered=p;
+  });
+  if(hovered!==prev) drawSemantic();
+});
+semanticCanvas.addEventListener('mouseleave',()=>{hovered=null;drawSemantic();});
+window.addEventListener('resize',drawSemantic);
+drawSemantic();
+
+/* ─── COSINE CANVAS ─── */
+const cosCanvas = document.getElementById('cos-canvas');
+const cctx = cosCanvas.getContext('2d');
+const cosSlider = document.getElementById('cos-slider');
+const cosScore = document.getElementById('cos-score');
+
+function drawCosine(angleDeg) {
+  const W=240,H=200,cx=40,cy=H-40;
+  cctx.clearRect(0,0,W,H);
+
+  const toRad=a=>a*Math.PI/180;
+  const len=140;
+  const a1=toRad(-20);
+  const a2=toRad(-20-angleDeg);
+
+  // Axes
+  cctx.strokeStyle='rgba(255,255,255,0.08)';
+  cctx.lineWidth=1;
+  cctx.beginPath();cctx.moveTo(cx,cy);cctx.lineTo(cx+190,cy);cctx.stroke();
+  cctx.beginPath();cctx.moveTo(cx,cy);cctx.lineTo(cx,10);cctx.stroke();
+
+  // Arc showing angle
+  cctx.beginPath();
+  cctx.arc(cx,cy,40,a2,a1);
+  cctx.strokeStyle='rgba(251,191,36,0.5)';
+  cctx.lineWidth=1.5;
+  cctx.stroke();
+  const arcMid=(a1+a2)/2;
+  cctx.fillStyle='rgba(251,191,36,0.7)';
+  cctx.font='10px JetBrains Mono';
+  cctx.textAlign='left';
+  cctx.fillText(`θ=${angleDeg}°`,cx+46,cy-18);
+
+  // Vector 1 (query)
+  const v1x=cx+Math.cos(a1)*len, v1y=cy+Math.sin(a1)*len;
+  cctx.beginPath();cctx.moveTo(cx,cy);cctx.lineTo(v1x,v1y);
+  cctx.strokeStyle='#a78bfa';cctx.lineWidth=2.5;
+  cctx.stroke();
+  // arrowhead
+  const hlen=12,hangle=0.4;
+  cctx.beginPath();
+  cctx.moveTo(v1x,v1y);
+  cctx.lineTo(v1x-hlen*Math.cos(a1-hangle),v1y-hlen*Math.sin(a1-hangle));
+  cctx.lineTo(v1x-hlen*Math.cos(a1+hangle),v1y-hlen*Math.sin(a1+hangle));
+  cctx.closePath();cctx.fillStyle='#a78bfa';cctx.fill();
+  cctx.font='11px Noto Sans SC';cctx.fillStyle='#a78bfa';cctx.textAlign='center';
+  cctx.fillText('查询向量',v1x+18,v1y);
+
+  // Vector 2 (document)
+  const v2x=cx+Math.cos(a2)*len, v2y=cy+Math.sin(a2)*len;
+  cctx.beginPath();cctx.moveTo(cx,cy);cctx.lineTo(v2x,v2y);
+  cctx.strokeStyle='#22d3ee';cctx.lineWidth=2.5;
+  cctx.stroke();
+  cctx.beginPath();
+  cctx.moveTo(v2x,v2y);
+  cctx.lineTo(v2x-hlen*Math.cos(a2-hangle),v2y-hlen*Math.sin(a2-hangle));
+  cctx.lineTo(v2x-hlen*Math.cos(a2+hangle),v2y-hlen*Math.sin(a2+hangle));
+  cctx.closePath();cctx.fillStyle='#22d3ee';cctx.fill();
+  cctx.font='11px Noto Sans SC';cctx.fillStyle='#22d3ee';cctx.textAlign='center';
+  cctx.fillText('文档向量',v2x-(angleDeg>45?30:0),v2y-14);
+}
+
+function updateCosine() {
+  const angle = parseInt(cosSlider.value);
+  drawCosine(angle);
+  const sim = Math.cos(angle * Math.PI/180);
+  cosScore.textContent = sim.toFixed(2);
+  cosScore.style.color = sim > 0.7 ? 'var(--green)' : sim > 0.4 ? 'var(--amber)' : 'var(--pink)';
+}
+cosSlider.addEventListener('input', updateCosine);
+updateCosine();
+
+/* ─── REVEAL ─── */
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');});
+},{threshold:0.08});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+</script>
+</body>
+</html>
